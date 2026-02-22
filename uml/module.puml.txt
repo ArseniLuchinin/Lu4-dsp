@@ -1,0 +1,29 @@
+@startuml
+
+interface IModule {
+  + init(string json) : ModuleStatus
+  + setParam(string paramName, string value)
+  + setData(IData) : void
+  + getData() : IData
+}
+
+class Conveyor {
+  - modules : IModule[]
+
+  # init(string json) : bool
+  # run() : void*
+}
+
+class IData {
+  + getDataName() : string
+}
+
+class GpuTensor {
+  + getDataName() : string
+  + getData() : Float*
+  - Float* d_data
+}
+
+IData <-- GpuTensor
+
+@enduml
