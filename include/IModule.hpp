@@ -5,6 +5,9 @@
 #include <memory>
 #include <IData.hpp>
 #include <ModuleMetaData.hpp>
+#include <any>
+
+#include <logger.hpp>
 
 /*!
 * @brief Интерфейс модуля
@@ -13,6 +16,11 @@
 */
 class IModule {
 public:
+
+    IModule() = delete;
+    IModule(ModuleMetaData mData) :
+        m_metaData(mData),
+        logger(boost::log::keywords::channel = mData.moduleName){};
     virtual ~IModule() = default;
     
     /*!
@@ -31,15 +39,19 @@ public:
     * @param paramName имя параметра
     * @param value значение параметра
     */
-    virtual void setParam(const std::string& paramName, const std::string& value) = 0;
+    virtual void setParam(const std::string& paramName, const std::any& value) = 0;
 
     virtual bool setData(std::shared_ptr<IData> data) = 0;
     virtual std::shared_ptr<IData> getData() = 0;
 
-    virtual ModuleMetaData getMetaData() = 0;
+    virtual ModuleMetaData getMetaData() { return m_metaData;}
 
 protected:
-    ModuleMetaData m_metaData;
+    src::severity_channel_logger<
+        logging::trivial::severity_level
+    > logger;
+
+    ModuleMetaData m_metaData {"Meow", "meow2", "meow3"};
 };
 
 #endif // IMODULE_H

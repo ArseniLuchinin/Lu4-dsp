@@ -82,7 +82,7 @@ bool Conveyor::run() {
         }
     }
 
-    CpuFloatSignal signal = CpuFloatSignal::fromGpu(data);
-    std::cout << signal.getData()[0] << std::endl;
+    auto signal = CpuFloatSignal::fromGpu(data);
+    std::cout << signal->getData()[0] << std::endl;
     return true; // В реальном приложении может возвращать результат обработки
 }

@@ -37,6 +37,8 @@ bool FileSrc::init() {
         return false;
     }
 
+    INFO << "Successfully opened file: " << m_fileName << std::endl;
+
     m_hostBuffer = new char[m_stepSize];
 
     return true;
@@ -49,14 +51,15 @@ bool FileSrc::run() {
     return false;
 }
 
-void FileSrc::setParam(const std::string& paramName, const std::string& value) {
+void FileSrc::setParam(const std::string& paramName, const std::any& value) {
     if(paramName == "file name") {
-        m_fileName = value;
+        m_fileName = std::any_cast<std::string>(value);
         return;
     }
 
     if(paramName == "data type") {
-        if(value == "float") 
+        auto valueStr = std::any_cast<std::string>(value);
+        if(valueStr == "float") 
             m_type = DataType::Float;
         return;
     }

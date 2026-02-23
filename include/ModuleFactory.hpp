@@ -1,12 +1,13 @@
 #ifndef MODULE_FACTORY_H
 #define MODULE_FACTORY_H
 
+#include <sw/redis++/redis++.h>
+
+#include <IModule.hpp>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
-
-#include <IModule.hpp>
-#include <RedisClient.hpp>
 
 class ModuleFactory {
     /// @brief Список модулей и директории с .so файлом и метаданными 
@@ -22,8 +23,8 @@ public:
     IModule* createModule(const std::string& moduleName);
 
 private:
+    sw::redis::Redis m_redis;
     modulesPackage_t modulesPackage;
-    RedisClient m_redis;
 };
 
 #endif // MODULE_FACTORY_H

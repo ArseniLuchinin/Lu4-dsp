@@ -9,16 +9,16 @@ CpuFloatSignal::CpuFloatSignal(float* data, size_t size) :
 }
 
 // Статический фабричный метод fromGpu
-CpuFloatSignal CpuFloatSignal::fromGpu(std::shared_ptr<IData> iData) {
+std::shared_ptr<CpuFloatSignal> CpuFloatSignal::fromGpu(std::shared_ptr<IData> iData) {
     auto gpuData = std::dynamic_pointer_cast<GpuFloatSignal>(iData);
     if(gpuData == nullptr) {
         std::cerr << "CpuFloatSignal::fromGpu: Input IData is not a GpuFloatSignal." << std::endl;
-        return CpuFloatSignal();
+        return std::make_shared<CpuFloatSignal>();
     }
 
     if (gpuData->size() == 0) {
         std::cerr << "CpuFloatSignal::fromGpu: GpuFloatSignal has size 0." << std::endl;
-        return CpuFloatSignal();
+        return std::make_shared<CpuFloatSignal>();
     }
 
     float* data = new float[gpuData->size()];
@@ -26,9 +26,9 @@ CpuFloatSignal CpuFloatSignal::fromGpu(std::shared_ptr<IData> iData) {
     if (err != cudaSuccess) {
         std::cerr << "CpuFloatSignal::fromGpu: cudaMemcpy failed: " << cudaGetErrorString(err) << std::endl;
         delete[] data;
-        return CpuFloatSignal();
+        return std::make_shared<CpuFloatSignal>();
     }
-    return CpuFloatSignal(data, gpuData->size());
+    return std::make_shared<CpuFloatSignal>(data, gpuData->size());
 }
 
 // Деструктор

@@ -1,15 +1,15 @@
 cmake_minimum_required(VERSION 3.10)
-project(FileSrc-module)
+project(SignalPlot-module)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)  # Add this
+add_subdirectory(external/matplotplusplus)
 
-find_package(CUDAToolkit REQUIRED)
-
-# Список исходных файлов
 set(SOURCES
-    src/FileSrc.cpp
+    src/SignalPlot.cpp
     ../../src/GpuFloatSignal.cpp
+    ../../src/CpuFloatSignal.cpp
 )
 
 # Создание исполняемого файла
@@ -20,7 +20,6 @@ target_include_directories(${PROJECT_NAME}
         ../../include
         ..)
 
-target_link_libraries(${PROJECT_NAME} 
-    CUDA::cudart
+target_link_libraries(${PROJECT_NAME} PUBLIC matplot
     logger
-    )
+)

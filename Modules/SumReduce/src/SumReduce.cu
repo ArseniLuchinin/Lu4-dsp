@@ -12,6 +12,9 @@ IModule* createModule() {
     return new SumReduce();
 }
 
+
+SumReduce::SumReduce() : IModule({"FileSrc", "FileSrc.so", "FileSrc.json"}) {}
+
 // Вызывается после заполнения значений
 bool SumReduce::init() {
     return true;
@@ -44,7 +47,7 @@ bool SumReduce::run() {
     
     return true;
 }
-void SumReduce::setParam(const std::string& paramName, const std::string& value) {
+void SumReduce::setParam(const std::string& paramName, const std::any& value) {
 }
 
 bool SumReduce::setData(std::shared_ptr<IData> data) {

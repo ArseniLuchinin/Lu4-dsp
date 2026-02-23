@@ -1,9 +1,20 @@
 #include <ModuleFactory.hpp>
 #include <dlfcn.h>
+#include <cstdlib>
 #include <iostream>
 
-ModuleFactory::ModuleFactory(const std::string& modulesDir) 
-    : m_redis("localhost", "6379"){
+namespace {
+    sw::redis::ConnectionOptions createConnection() {
+    sw::redis::ConnectionOptions opts;
+    opts.host = "127.0.0.1";
+    opts.port = 6379;
+    opts.password = std::getenv("REDISCLI_AUTH");
+        return opts;
+    }
+}
+
+ModuleFactory::ModuleFactory(const std::string& modulesDir) : 
+    m_redis(createConnection()) {
 }
 
 IModule* ModuleFactory::createModule(const std::string& moduleName) {

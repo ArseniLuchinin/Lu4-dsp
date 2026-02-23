@@ -1,4 +1,3 @@
-
 cmake_minimum_required(VERSION 3.10)
 project(SumReduce-module)
 
@@ -20,6 +19,7 @@ add_library(SumReduce-module SHARED
 
 set_target_properties(SumReduce-module PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
+    CUDA_ARCHITECTURES 75  
 )
 
 target_include_directories(${PROJECT_NAME} 

@@ -15,7 +15,8 @@ enum DataType{
 */
 class FileSrc : public IModule {
 public:
-    FileSrc() = default;
+
+    FileSrc() : IModule({"FileSrc",  "FileSrc", "FileSrc"}) {};
     ~FileSrc() = default;
 
     /// @brief Выделяет память для данных
@@ -23,12 +24,10 @@ public:
     /// @brief Чиатет данные из файл
     virtual bool run() override;
 
-    virtual void setParam(const std::string& paramName, const std::string& value) override;
+    virtual void setParam(const std::string& paramName, const std::any& value) override;
 
     virtual bool setData(std::shared_ptr<IData> data) override;
     virtual std::shared_ptr<IData> getData() override;
-
-    virtual ModuleMetaData getMetaData() override {return m_metaData;}  
 
     bool readFile();
 
@@ -40,8 +39,6 @@ protected:
 
     std::shared_ptr<IData> m_data;
     char* m_hostBuffer;
-
-    ModuleMetaData m_metaData {"FileSrc", "FileSrc.so", "FileSrc.json"};
 };
 
 #endif

@@ -12,7 +12,7 @@ public:
     CpuFloatSignal() = default;
     explicit CpuFloatSignal(float* data, size_t size);
 
-    static CpuFloatSignal fromGpu(std::shared_ptr<IData> iData);
+    static std::shared_ptr<CpuFloatSignal> fromGpu(std::shared_ptr<IData> iData);
 
     virtual ~CpuFloatSignal();
 
