@@ -8,8 +8,6 @@ add_subdirectory(external/matplotplusplus)
 
 set(SOURCES
     src/SignalPlot.cpp
-    ../../src/GpuFloatSignal.cpp
-    ../../src/CpuFloatSignal.cpp
 )
 
 # Создание исполняемого файла
@@ -17,9 +15,12 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 target_include_directories(${PROJECT_NAME} 
     PRIVATE
         include
-        ../../include
+        ${MODULE_INCLUDE_DIRS}
+        ${DATA_CONTAINERS_INCLUDE_DIRS}
         ..)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC matplot
     logger
+    DataContainers
+    Module
 )

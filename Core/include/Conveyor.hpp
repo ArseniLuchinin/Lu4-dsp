@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <IModule.hpp>
+#include </home/luchinin/my_source/Course_poject/Server/Module/include/IModule.hpp>
 
 class Conveyor {
 public:

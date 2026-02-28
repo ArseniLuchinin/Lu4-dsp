@@ -17,7 +17,7 @@ class FileSrc : public IModule {
 public:
 
     FileSrc() : IModule({"FileSrc",  "FileSrc", "FileSrc"}) {};
-    ~FileSrc() = default;
+    ~FileSrc();
 
     /// @brief Выделяет память для данных
     virtual bool init() override;

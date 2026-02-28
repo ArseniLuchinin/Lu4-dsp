@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <iostream>
 
+
 namespace {
     sw::redis::ConnectionOptions createConnection() {
     sw::redis::ConnectionOptions opts;

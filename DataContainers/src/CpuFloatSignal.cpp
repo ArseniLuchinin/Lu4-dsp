@@ -1,12 +1,11 @@
-#include "CpuFloatSignal.hpp"
+#include <CpuFloatSignal.hpp>
 #include <iostream>
 
 // Конструктор
 CpuFloatSignal::CpuFloatSignal(float* data, size_t size) :
-    m_data(data),
-    m_size(size)
-{
-}
+    m_data(data), m_size(size),
+    IData("CPU float signal")
+{}
 
 // Статический фабричный метод fromGpu
 std::shared_ptr<CpuFloatSignal> CpuFloatSignal::fromGpu(std::shared_ptr<IData> iData) {
@@ -41,10 +40,6 @@ CpuFloatSignal::~CpuFloatSignal() {
 
 size_t CpuFloatSignal::size() const {
     return m_size;
-}
-
-std::string CpuFloatSignal::getDataName() const {
-    return "Cpu Float Signal";
 }
 
 float* CpuFloatSignal::getData() const {

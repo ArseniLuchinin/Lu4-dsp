@@ -1,5 +1,7 @@
-#ifndef SIGNAL_PLOT_H
-#define SIGNAL_PLOT_H
+#ifndef SIGNAL_PLOT__H
+#define SIGNAL_PLOT__H
+
+#include <matplot/matplot.h>
 
 #include <IModule.hpp>
 #include <CpuFloatSignal.hpp>
@@ -18,8 +20,12 @@ public:
     virtual bool setData(std::shared_ptr<IData> data) override;
     virtual std::shared_ptr<IData> getData() override;
 protected:
-    std::shared_ptr<CpuFloatSignal> m_data;
     size_t m_samplateRate = 1;
+
+    /// @brief  Данные с которыми работаем
+    matplot::vector_1d m_data;
+    /// @brief Изначальные данне, передаются дальше без изменений
+    std::shared_ptr<IData> m_transitData;
 
     std::string m_savePath;
     bool m_isShow = true;

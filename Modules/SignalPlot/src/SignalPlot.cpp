@@ -24,21 +24,20 @@ bool SignalPlot::init() {
 }
 
 bool SignalPlot::run() {
-    if (!m_data || m_data->size() == 0) {
+    if (m_data.empty()) {
         return false;
     }
 
-    matplot::vector_1d y(m_data->getData(), m_data->getData() + m_data->size());
-    std::vector<float> time(m_data->size());
+    std::vector<float> time(m_data.size());
 
-    for (int i = 0; i < m_data->size(); ++i) {
+    for (int i = 0; i < m_data.size(); ++i) {
         time[i] = float(i) / m_samplateRate;
     }
 
     auto f = matplot::figure();
     f->backend()->run_command("unset warnings");
 
-    matplot::plot(time, y);
+    matplot::plot(time, m_data);
 
     if(m_isShow) {
 
@@ -74,12 +73,19 @@ void SignalPlot::setParam(const std::string& paramName, const std::any& value) {
 }
 
 bool SignalPlot::setData(std::shared_ptr<IData> data) {
-    auto gpuData = std::dynamic_pointer_cast<GpuFloatSignal>(data);
-    m_data = CpuFloatSignal::fromGpu(gpuData);
+    if(not data) {
+        return false;
+    }
 
-    return static_cast<bool>(m_data);
+    m_transitData = data;
+    auto gpuData = std::dynamic_pointer_cast<GpuFloatSignal>(data);
+    auto cpuData = CpuFloatSignal::fromGpu(gpuData);
+
+    m_data = matplot::vector_1d(cpuData->getData(), cpuData->getData() + cpuData->size());
+
+    return true;
 }
 
 std::shared_ptr<IData> SignalPlot::getData() {
-    return m_data;
+    return m_transitData;
 }

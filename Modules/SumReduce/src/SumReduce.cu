@@ -13,7 +13,7 @@ IModule* createModule() {
 }
 
 
-SumReduce::SumReduce() : IModule({"FileSrc", "FileSrc.so", "FileSrc.json"}) {}
+SumReduce::SumReduce() : IModule({"SumReduce", "FileSrc.so", "FileSrc.json"}) {}
 
 // Вызывается после заполнения значений
 bool SumReduce::init() {
@@ -28,9 +28,23 @@ bool SumReduce::run() {
     size_t temp_storage_bytes = 0;
     float* d_in = m_data->getDeviceData();
     size_t n = m_data->size();
+
+    DEBUG << n << std::endl;
+
+    if(not m_data){
+        ERROR << "Failed to get data" << std::endl;
+        return false;
+    }
     
     float* d_out = nullptr;
-    cudaMalloc(&d_out, sizeof(float));
+    const auto err = cudaMalloc(&d_out, sizeof(float));
+
+    if(not d_out){
+        ERROR
+            << "Failed to allocate device memory for output"
+            << cudaGetErrorString(err) << std::endl;
+        return false;
+    }
     
     cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, d_in, d_out, n);
     

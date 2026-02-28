@@ -9,7 +9,10 @@
 
 class CpuFloatSignal : public IData {
 public:
-    CpuFloatSignal() = default;
+    CpuFloatSignal(const CpuFloatSignal&) = delete;
+    CpuFloatSignal& operator=(const CpuFloatSignal&) = delete;
+
+    CpuFloatSignal() : IData("CPU float signal") {}
     explicit CpuFloatSignal(float* data, size_t size);
 
     static std::shared_ptr<CpuFloatSignal> fromGpu(std::shared_ptr<IData> iData);
@@ -17,8 +20,6 @@ public:
     virtual ~CpuFloatSignal();
 
     size_t size() const override;
-
-    std::string getDataName() const override;
 
     float* getData() const;
 

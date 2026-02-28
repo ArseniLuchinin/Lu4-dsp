@@ -18,9 +18,9 @@ class IModule {
 public:
 
     IModule() = delete;
-    IModule(ModuleMetaData mData) :
-        m_metaData(mData),
-        logger(boost::log::keywords::channel = mData.moduleName){};
+    IModule(ModuleMetaData mData) :    m_metaData(mData),
+    logger(boost::log::keywords::channel = mData.moduleName){};
+
     virtual ~IModule() = default;
     
     /*!
@@ -44,7 +44,7 @@ public:
     virtual bool setData(std::shared_ptr<IData> data) = 0;
     virtual std::shared_ptr<IData> getData() = 0;
 
-    virtual ModuleMetaData getMetaData() { return m_metaData;}
+    ModuleMetaData getMetaData() {return m_metaData;} 
 
 protected:
     src::severity_channel_logger<

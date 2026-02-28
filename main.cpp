@@ -9,6 +9,7 @@
 #include <boost/log/utility/setup/console.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
 
+
 namespace logging = boost::log;
 namespace expr = boost::log::expressions;
 
@@ -33,17 +34,25 @@ int32_t main(int argc, char const *argv[])
     init_logging();
     ModuleFactory factory(".");
 
+int count;
+cudaError_t err = cudaGetDeviceCount(&count);
+printf("count=%d err=%s\n", count, cudaGetErrorString(err));
     Conveyor conveyor("Main conveyor");
     std::shared_ptr<IModule> module1 = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
-    module1->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_sognal.bin"));
+    module1->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_signal.bin"));
     module1->setParam("data type", std::string("float"));
-    std::shared_ptr<IModule> module2 = std::shared_ptr<IModule>(factory.createModule("SignalPlot"));
-    module2->setParam("sample rate", 20000);
-    module2->setParam("show", true);
-    module2->setParam("save path", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_signal.png"));
+
+    std::shared_ptr<IModule> module2 = std::shared_ptr<IModule>(factory.createModule("SumReduce"));
+
+    std::shared_ptr<IModule> module3 = std::shared_ptr<IModule>(factory.createModule("SignalPlot"));
+    module3->setParam("sample rate", 20000);
+    module3->setParam("show", true);
+    module3->setParam("save path", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_signal.png"));
+
 
     conveyor.addModule(module1);
     conveyor.addModule(module2);
+    conveyor.addModule(module3);
 
     if(not conveyor.init()){
         std::cerr << "Error init" << std::endl;
@@ -56,6 +65,5 @@ int32_t main(int argc, char const *argv[])
     }
 
     std::cout << "Success" << std::endl;
-
     return 0;
 }

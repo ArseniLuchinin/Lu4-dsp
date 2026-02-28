@@ -5,6 +5,7 @@
 
 #include <CpuFloatSignal.hpp>
 
+
 Conveyor::Conveyor(const std::string& name)
     : m_conveyorName(name)
     , m_isInitialized(false) {
