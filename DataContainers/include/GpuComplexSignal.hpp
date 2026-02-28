@@ -2,32 +2,15 @@
 #ifndef GPU_COMPLEX_FLOAT_SIGNAL_HPP
 #define GPU_COMPLEX_FLOAT_SIGNAL_HPP
 
-#include <IData.hpp>
 #include <cuComplex.h>
-
-class GpuComplexFloatSignal : public IData {
-public:
-    GpuComplexFloatSignal(const GpuComplexFloatSignal&) = delete;
-    GpuComplexFloatSignal(const cuComplex* data, size_t size);
-    GpuComplexFloatSignal(GpuComplexFloatSignal && other);
-    //TODO GpuComplexFloatSignal(const float* realData, const float* imagData, size_t size);
-    ~GpuComplexFloatSignal();
-
-    void setDataFromHost(cuComplex* data, size_t size);
-    void setDataFromDevice(cuComplex* data, const size_t size);
-
-    cuComplex* getDeviceData();
-
-    size_t size() const override;
-
-
-private:
-    bool checkData(const cuComplex* data);
-    void freeData();
-
-    cuComplex* m_data;
-    size_t m_size = 0;
+#include <GpuSignal.hpp>
+struct gpu_comples_float_tag {
+    static constexpr const char* name = "Gpu conmplex float signal";
 };
+
+extern template class GpuSignal<cuComplex, gpu_comples_float_tag>;
+using GpuComplexFloatSignal = GpuSignal<cuComplex, gpu_comples_float_tag>;
+
 
 #endif
 

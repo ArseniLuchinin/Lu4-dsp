@@ -10,7 +10,7 @@
 #include <module.hpp>
 
 namespace {
-    constexpr size_t MAX_SIZE = 100'000;
+    constexpr size_t MAX_SIZE = 1'000'000;
 }
 
 IModule* createModule() {
@@ -29,7 +29,6 @@ bool FileSrc::init() {
 
     const auto fileSize = std::filesystem::file_size(m_fileName);
     m_stepSize = (fileSize > MAX_SIZE) ? MAX_SIZE : fileSize;
-    m_stepSize /= sizeof(float);
 
 
     m_file = std::ifstream(m_fileName, std::ios::in | std::ios::binary);
@@ -77,7 +76,7 @@ std::shared_ptr<IData> FileSrc::getData() {
 bool FileSrc::readFile() {
     m_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     if(m_file.is_open()) {
-        std::shared_ptr<GpuFloatSignal> tryData = std::shared_ptr<GpuFloatSignal>(new GpuFloatSignal(m_stepSize));
+        std::shared_ptr<GpuFloatSignal> tryData = std::shared_ptr<GpuFloatSignal>(new GpuFloatSignal(m_stepSize/sizeof(float)));
         if(tryData->size() <= 0) {
             return false;
         }
@@ -95,12 +94,6 @@ bool FileSrc::readFile() {
 
         if(m_hostBuffer == nullptr)
             return false;
-        
-        DEBUG << "Readed: ";
-        for (int i = 0; i < 16; i++) {
-            printf("%02X ", (unsigned char)m_hostBuffer[i]);
-        }
-        std::cout << std::endl;
 
         const auto readedSize = m_file.gcount() / sizeof(float);
         INFO << "Readed size: " << readedSize << " from file: " << m_fileName << std::endl;

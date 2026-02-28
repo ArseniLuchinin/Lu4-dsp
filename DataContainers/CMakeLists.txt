@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
 add_library(${PROJECT_NAME} SHARED
-    src/GpuComplexSignal.cpp
+    src/GpuSignal.cpp
     src/CpuFloatSignal.cpp
 )
 

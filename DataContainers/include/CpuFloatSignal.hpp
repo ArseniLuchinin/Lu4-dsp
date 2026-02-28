@@ -23,6 +23,18 @@ public:
 
     float* getData() const;
 
+    size_t availableSize() const {
+        return m_size;
+    }
+
+    bool reserve(const size_t size) override {
+        return true;
+    }
+
+    bool isValid() const override {
+        return m_data != nullptr;
+    }
+
 protected:
     float* m_data = nullptr;
     size_t m_size = 0;

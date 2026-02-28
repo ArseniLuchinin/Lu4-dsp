@@ -80,6 +80,10 @@ bool Conveyor::run() {
             }
 
             data = module->getData();
+            if(not data->isValid()){
+                std::cerr << "Invalid data from: " << module->getMetaData().moduleName << std::endl;
+                return false;
+            }
         }
     }
 

@@ -3,6 +3,9 @@
 
 #include <IModule.hpp>
 #include <GpuFloatSignal.hpp>
+#include <GpuComplexSignal.hpp>
+
+#include <cufft.h>
 
 #include <memory>
 
@@ -20,7 +23,15 @@ public:
     std::shared_ptr<IData> getData() override;
 
 private:
-    std::shared_ptr<GpuFloatSignal> m_data;
+    bool prepareData();
+    bool initPlan();
+
+    std::shared_ptr<GpuFloatSignal> m_inData;
+    std::shared_ptr<GpuComplexFloatSignal> m_outData;
+
+    cufftHandle m_plan;
+
+    size_t m_fftSize = 1024;
 };
 
 #endif

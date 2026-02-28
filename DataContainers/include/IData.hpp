@@ -18,6 +18,7 @@ public:
 
     /// @brief Возвращает размер памяти в элементах
     virtual size_t size() const = 0;
+    virtual size_t availableSize() const = 0;
 
 
     /*!

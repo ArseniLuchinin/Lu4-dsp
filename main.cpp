@@ -38,21 +38,23 @@ int count;
 cudaError_t err = cudaGetDeviceCount(&count);
 printf("count=%d err=%s\n", count, cudaGetErrorString(err));
     Conveyor conveyor("Main conveyor");
-    std::shared_ptr<IModule> module1 = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
-    module1->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_signal.bin"));
-    module1->setParam("data type", std::string("float"));
+    std::shared_ptr<IModule> srcModule = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
+    srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_signal.bin"));
+    srcModule->setParam("data type", std::string("float"));
 
-    std::shared_ptr<IModule> module2 = std::shared_ptr<IModule>(factory.createModule("SumReduce"));
+    std::shared_ptr<IModule> module1 = std::shared_ptr<IModule>(factory.createModule("FFT"));
+    std::shared_ptr<IModule> module2 = std::shared_ptr<IModule>(factory.createModule("CS2AS"));
 
-    std::shared_ptr<IModule> module3 = std::shared_ptr<IModule>(factory.createModule("SignalPlot"));
-    module3->setParam("sample rate", 20000);
-    module3->setParam("show", true);
-    module3->setParam("save path", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_signal.png"));
+    std::shared_ptr<IModule> viewModule = std::shared_ptr<IModule>(factory.createModule("SignalPlot"));
+    viewModule->setParam("sample rate", 20000);
+    viewModule->setParam("show", true);
+    viewModule->setParam("save path", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_signal.png"));
 
 
+    conveyor.addModule(srcModule);
     conveyor.addModule(module1);
     conveyor.addModule(module2);
-    conveyor.addModule(module3);
+    conveyor.addModule(viewModule);
 
     if(not conveyor.init()){
         std::cerr << "Error init" << std::endl;
