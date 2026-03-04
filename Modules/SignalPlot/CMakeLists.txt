@@ -17,9 +17,11 @@ target_include_directories(${PROJECT_NAME}
         include
         ${MODULE_INCLUDE_DIRS}
         ${DATA_CONTAINERS_INCLUDE_DIRS}
-        ..)
+        ..
+)
 
-target_link_libraries(${PROJECT_NAME} PUBLIC matplot
+target_link_libraries(${PROJECT_NAME} PUBLIC
+    matplot
     logger
     DataContainers
     Module

@@ -38,5 +38,6 @@ target_link_libraries(computing_server
 add_subdirectory(Modules/FileSrc)
 add_subdirectory(Modules/SumReduce)
 add_subdirectory(Modules/SignalPlot)
+add_subdirectory(Modules/SpectrogramPlot)
 add_subdirectory(Modules/FFT)
 add_subdirectory(Modules/CS2AS)

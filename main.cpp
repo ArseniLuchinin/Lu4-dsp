@@ -13,6 +13,8 @@
 namespace logging = boost::log;
 namespace expr = boost::log::expressions;
 
+bool checkGPU();
+
 void init_logging()
 {
     logging::add_console_log(
@@ -31,30 +33,42 @@ void init_logging()
 
 int32_t main(int argc, char const *argv[])
 {
+    if(not checkGPU()){
+        return -1;
+    }
+
+    const int32_t fftSize = 2048;
+    const int32_t sampleFreq = 192'000;
     init_logging();
     ModuleFactory factory(".");
 
-int count;
-cudaError_t err = cudaGetDeviceCount(&count);
-printf("count=%d err=%s\n", count, cudaGetErrorString(err));
     Conveyor conveyor("Main conveyor");
     std::shared_ptr<IModule> srcModule = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
-    srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_signal.bin"));
+    srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/fm_signal.bin"));
     srcModule->setParam("data type", std::string("float"));
 
+
     std::shared_ptr<IModule> module1 = std::shared_ptr<IModule>(factory.createModule("FFT"));
+    module1->setParam("fft size", fftSize);
+
     std::shared_ptr<IModule> module2 = std::shared_ptr<IModule>(factory.createModule("CS2AS"));
 
     std::shared_ptr<IModule> viewModule = std::shared_ptr<IModule>(factory.createModule("SignalPlot"));
-    viewModule->setParam("sample rate", 20000);
+    viewModule->setParam("sample rate", sampleFreq);
     viewModule->setParam("show", true);
     viewModule->setParam("save path", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/sin_signal.png"));
 
+    
+    std::shared_ptr<IModule> spectrogramm = std::shared_ptr<IModule>(factory.createModule("SpectrogramPlot"));
+    spectrogramm->setParam("show", true);
+    spectrogramm->setParam("sample rate", sampleFreq);
+    spectrogramm->setParam("fft size", fftSize);
+    spectrogramm->setParam("save path", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogramm.png"));
 
     conveyor.addModule(srcModule);
     conveyor.addModule(module1);
     conveyor.addModule(module2);
-    conveyor.addModule(viewModule);
+    conveyor.addModule(spectrogramm);
 
     if(not conveyor.init()){
         std::cerr << "Error init" << std::endl;

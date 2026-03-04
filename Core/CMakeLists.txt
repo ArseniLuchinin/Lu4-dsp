@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(${PROJECT_NAME}
     src/ModuleFactory.cpp
     src/Conveyor.cpp
+    src/CheckGpu.cpp
 
     include/ModuleFactory.hpp
     include/Conveyor.hpp

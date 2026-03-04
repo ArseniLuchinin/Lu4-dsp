@@ -1,0 +1,27 @@
+#ifndef CS_TO_AS_HPP
+#define CS_TO_AS_HPP
+
+#include <IModule.hpp>
+#include <GpuComplexSignal.hpp>
+#include <GpuFloatSignal.hpp>
+
+
+class CS2AS : public IModule {
+public:
+    inline CS2AS() : IModule ({"Complex spectrum to amplitude spectrum",  "", ""}){};
+    ~CS2AS() = default;
+
+    bool init() override;
+    bool run() override;
+
+    void setParam(const std::string& paramName, const std::any& value) override;
+
+    bool setData(std::shared_ptr<IData> data) override;
+    std::shared_ptr<IData> getData() override;
+
+private:
+    std::shared_ptr<GpuComplexFloatSignal> m_inData;
+    std::shared_ptr<GpuFloatSignal> m_outData;
+};
+
+#endif // CS_TO_AS_HPP

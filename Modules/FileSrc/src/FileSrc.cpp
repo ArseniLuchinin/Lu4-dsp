@@ -10,7 +10,7 @@
 #include <module.hpp>
 
 namespace {
-    constexpr size_t MAX_SIZE = 1'000'000;
+    constexpr size_t MAX_SIZE = 1'000'000'000;
 }
 
 IModule* createModule() {
