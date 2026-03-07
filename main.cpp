@@ -46,7 +46,7 @@ int32_t main(int argc, char const *argv[])
     std::shared_ptr<IModule> srcModule = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
     srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/am_signal.bin"));
     srcModule->setParam("data type", std::string("float"));
-    srcModule->setParam("max size", size_t(1'000'000));
+    srcModule->setParam("max size", size_t(1'048'576));
 
     std::shared_ptr<IModule> firModule = std::shared_ptr<IModule>(factory.createModule("FIR-filter"));
     firModule->setParam("sample rate", sampleFreq);

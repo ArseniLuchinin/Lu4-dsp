@@ -12,7 +12,7 @@
 class FFT : public IModule {
 public:
     FFT();
-    ~FFT() override = default;
+    ~FFT() override;
 
     bool init() override;
     bool run() override;
@@ -25,15 +25,20 @@ public:
 private:
     bool prepareData();
     bool initPlan();
+    bool initPrefixPlan();
+    bool validateOverlap();
+    bool saveInputTailToBuffer();
+    bool executeStitchFft();
 
     std::shared_ptr<GpuFloatSignal> m_inData;
     std::shared_ptr<GpuComplexFloatSignal> m_outData;
 
-    cufftHandle m_plan;
+    cufftHandle m_plan = 0;
 
-    cufftHandle m_prefixPlan;
+    cufftHandle m_prefixPlan = 0;
+    GpuFloatSignal m_prefixInput;
     GpuFloatSignal m_buffer;
-    bool m_isFirtFft = true;
+    bool m_isFirstFft = true;
 
     size_t m_fftSize = 1024;
     int32_t m_overlapSize = m_fftSize / 2;

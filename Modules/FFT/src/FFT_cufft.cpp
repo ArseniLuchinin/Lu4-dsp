@@ -41,6 +41,17 @@ IModule* createModule() {
 }
 
 FFT::FFT() : IModule({"FFT", "FFT-module.so", "FFT.json"}) {}
+FFT::~FFT() {
+    if (m_plan != 0) {
+        cufftDestroy(m_plan);
+        m_plan = 0;
+    }
+
+    if (m_prefixPlan != 0) {
+        cufftDestroy(m_prefixPlan);
+        m_prefixPlan = 0;
+    }
+}
 
 bool FFT::init() {
     return true;
@@ -103,20 +114,188 @@ bool FFT::initPlan(){
     return true;
 }
 
+bool FFT::initPrefixPlan() {
+    m_prefixPlan = 0;
+
+    int n[1] = {static_cast<int>(m_fftSize)};
+    const auto planStatus = cufftPlanMany(
+        &m_prefixPlan,
+        1,
+        n,
+        nullptr,
+        1,
+        static_cast<int>(m_fftSize),
+        nullptr,
+        1,
+        static_cast<int>((m_fftSize / 2) + 1),
+        CUFFT_R2C,
+        1
+    );
+    if (planStatus != CUFFT_SUCCESS) {
+        ERROR << "FFT::initPrefixPlan: cufftPlanMany failed: " << cufftResultToString(planStatus) << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool FFT::validateOverlap() {
+    if (m_overlapSize < 0) {
+        ERROR << "FFT::setData: overlap size must be non-negative, current = " << m_overlapSize << std::endl;
+        return false;
+    }
+    if (static_cast<size_t>(m_overlapSize) >= m_fftSize) {
+        ERROR << "FFT::setData: overlap size must be less than fft size. overlap = "
+              << m_overlapSize << ", fft size = " << m_fftSize << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool FFT::saveInputTailToBuffer() {
+    const auto overlap = static_cast<size_t>(m_overlapSize);
+    if (overlap == 0) {
+        return true;
+    }
+
+    if (m_inData->size() < overlap) {
+        ERROR << "FFT::saveInputTailToBuffer: input size is smaller than overlap size." << std::endl;
+        return false;
+    }
+
+    if (!m_buffer.reserve(overlap)) {
+        ERROR << "FFT::saveInputTailToBuffer: failed to reserve buffer." << std::endl;
+        return false;
+    }
+
+    auto* inPtr = m_inData->getDeviceData();
+    auto* bufferPtr = m_buffer.getDeviceData();
+    if (!inPtr || !bufferPtr) {
+        ERROR << "FFT::saveInputTailToBuffer: null device pointer." << std::endl;
+        return false;
+    }
+
+    m_buffer.setDataFromDevice(inPtr + (m_inData->size() - overlap), overlap);
+    if (!m_buffer.isValid() || m_buffer.size() < overlap) {
+        ERROR << "FFT::saveInputTailToBuffer: failed to save input tail." << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+bool FFT::executeStitchFft() {
+    const auto overlap = static_cast<size_t>(m_overlapSize);
+    if (m_isFirstFft || overlap == 0) {
+        return true;
+    }
+
+    const size_t headSize = m_fftSize - overlap;
+    if (m_inData->size() < headSize) {
+        ERROR << "FFT::executeStitchFft: input size is too small for stitch FFT. Need at least "
+              << headSize << ", got " << m_inData->size() << std::endl;
+        return false;
+    }
+
+    if (!m_buffer.isValid() || m_buffer.size() < overlap) {
+        ERROR << "FFT::executeStitchFft: previous tail buffer is invalid." << std::endl;
+        return false;
+    }
+
+    if (!m_prefixInput.reserve(m_fftSize)) {
+        ERROR << "FFT::executeStitchFft: failed to reserve prefix input." << std::endl;
+        return false;
+    }
+
+    auto* prefixPtr = m_prefixInput.getDeviceData();
+    auto* inPtr = m_inData->getDeviceData();
+    auto* bufferPtr = m_buffer.getDeviceData();
+    auto* outPtr = reinterpret_cast<cufftComplex*>(m_outData->getDeviceData());
+    if (!prefixPtr || !inPtr || !bufferPtr || !outPtr) {
+        ERROR << "FFT::executeStitchFft: null device pointer." << std::endl;
+        return false;
+    }
+
+    const auto copyTail = cudaMemcpy(
+        prefixPtr,
+        bufferPtr,
+        overlap * sizeof(float),
+        cudaMemcpyDeviceToDevice
+    );
+    if (copyTail != cudaSuccess) {
+        ERROR << "FFT::executeStitchFft: tail copy failed: " << cudaGetErrorString(copyTail) << std::endl;
+        return false;
+    }
+
+    const auto copyHead = cudaMemcpy(
+        prefixPtr + overlap,
+        inPtr,
+        headSize * sizeof(float),
+        cudaMemcpyDeviceToDevice
+    );
+    if (copyHead != cudaSuccess) {
+        ERROR << "FFT::executeStitchFft: head copy failed: " << cudaGetErrorString(copyHead) << std::endl;
+        return false;
+    }
+
+    if (!initPrefixPlan()) {
+        return false;
+    }
+
+    const auto execStatus = cufftExecR2C(
+        m_prefixPlan,
+        m_prefixInput.getDeviceData(),
+        outPtr
+    );
+    if (execStatus != CUFFT_SUCCESS) {
+        ERROR << "FFT::executeStitchFft: cufftExecR2C failed: " << cufftResultToString(execStatus) << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 bool FFT::run() {
+    if (m_plan != 0) {
+        cufftDestroy(m_plan);
+        m_plan = 0;
+    }
+    if (m_prefixPlan != 0) {
+        cufftDestroy(m_prefixPlan);
+        m_prefixPlan = 0;
+    }
 
-    if(not prepareData()) {
+    if (not prepareData()) {
         return false;
     }
 
-    if(not initPlan()){
+    if (not initPlan()) {
         return false;
     }
 
-    const auto execStatus = cufftExecR2C(m_plan, m_inData->getDeviceData(), m_outData->getDeviceData());
+    const size_t prefixBins = (!m_isFirstFft && m_overlapSize > 0) ? ((m_fftSize / 2) + 1) : 0;
+    auto* outPtr = reinterpret_cast<cufftComplex*>(m_outData->getDeviceData());
+    if (!outPtr) {
+        ERROR << "FFT::run: output pointer is null." << std::endl;
+        return false;
+    }
+
+    if (prefixBins > 0 && !executeStitchFft()) {
+        return false;
+    }
+
+    const auto execStatus = cufftExecR2C(
+        m_plan,
+        m_inData->getDeviceData(),
+        outPtr + prefixBins
+    );
     if (execStatus != CUFFT_SUCCESS) {
         ERROR << "FFT::run: cufftExecR2C failed: " << cufftResultToString(execStatus) << std::endl;
         cufftDestroy(m_plan);
+        m_plan = 0;
+        if (m_prefixPlan != 0) {
+            cufftDestroy(m_prefixPlan);
+            m_prefixPlan = 0;
+        }
         return false;
     }
 
@@ -124,10 +303,32 @@ bool FFT::run() {
     if (cudaErr != cudaSuccess) {
         ERROR << "FFT::run: CUDA execution error after cufftExecR2C: " << cudaGetErrorString(cudaErr) << std::endl;
         cufftDestroy(m_plan);
+        m_plan = 0;
+        if (m_prefixPlan != 0) {
+            cufftDestroy(m_prefixPlan);
+            m_prefixPlan = 0;
+        }
         return false;
     }
 
-    m_isFirtFft = false;
+    if (!saveInputTailToBuffer()) {
+        cufftDestroy(m_plan);
+        m_plan = 0;
+        if (m_prefixPlan != 0) {
+            cufftDestroy(m_prefixPlan);
+            m_prefixPlan = 0;
+        }
+        return false;
+    }
+
+    m_isFirstFft = false;
+
+    cufftDestroy(m_plan);
+    m_plan = 0;
+    if (m_prefixPlan != 0) {
+        cufftDestroy(m_prefixPlan);
+        m_prefixPlan = 0;
+    }
 
     return true;
 }
@@ -154,6 +355,10 @@ bool FFT::setData(std::shared_ptr<IData> data) {
         return false;
     }
 
+    if (!validateOverlap()) {
+        return false;
+    }
+
     const auto inputSize = gpuData->size();
     if (inputSize == 0) {
         ERROR << "FFT::setData: input signal has zero size." << std::endl;
@@ -169,7 +374,8 @@ bool FFT::setData(std::shared_ptr<IData> data) {
 
     const auto batch = inputSize / m_fftSize;
     const auto outputPerBatch = (m_fftSize / 2) + 1;
-    const auto outputSize = outputPerBatch * (batch);
+    const auto hasStitchFrame = (!m_isFirstFft && m_overlapSize > 0) ? 1 : 0;
+    const auto outputSize = outputPerBatch * (batch + hasStitchFrame);
     auto outData = std::make_shared<GpuComplexFloatSignal>(outputSize);
     if (!outData || !outData->isValid()) {
         ERROR << "FFT::setData: failed to allocate output GPU buffer, size = " << outputSize << std::endl;
