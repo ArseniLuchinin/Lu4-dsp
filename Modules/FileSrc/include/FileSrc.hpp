@@ -33,6 +33,8 @@ public:
 
 protected:
     DataType m_type;
+
+    size_t m_maxSize;
     std::string m_fileName;
     size_t m_stepSize = 0;
     std::ifstream m_file;

@@ -31,7 +31,12 @@ private:
 
     cufftHandle m_plan;
 
+    cufftHandle m_prefixPlan;
+    GpuFloatSignal m_buffer;
+    bool m_isFirtFft = true;
+
     size_t m_fftSize = 1024;
+    int32_t m_overlapSize = m_fftSize / 2;
 };
 
 #endif

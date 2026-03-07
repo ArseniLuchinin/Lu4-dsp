@@ -18,14 +18,14 @@ class IModule {
 public:
 
     IModule() = delete;
-    IModule(ModuleMetaData mData) :    m_metaData(mData),
-    logger(boost::log::keywords::channel = mData.moduleName){};
+    IModule(ModuleMetaData mData) :
+        logger(boost::log::keywords::channel = mData.moduleName),
+        m_metaData(mData){};
 
     virtual ~IModule() = default;
     
     /*!
     * @brief init инициализирует модуль из json 
-    * @param json
     * @return true если модуль успешно инициализирован
     * @return false если есть ошибки
     */

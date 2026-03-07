@@ -10,8 +10,8 @@ class IData {
 public:
     IData() = delete;
     IData(const std::string & dataName) :
-        m_dataName(dataName),
-        logger(boost::log::keywords::channel = dataName){};
+        logger(boost::log::keywords::channel = dataName),
+        m_dataName(dataName) {};
 
     virtual ~IData() = default;
     inline const std::string& getDataName() const {return m_dataName;};

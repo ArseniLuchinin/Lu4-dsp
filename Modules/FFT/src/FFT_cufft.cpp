@@ -2,6 +2,7 @@
 
 #include <module.hpp>
 #include <utility>
+#include <iostream>
 
 #include <cufft.h>
 #include <cuda_runtime.h>
@@ -42,6 +43,13 @@ IModule* createModule() {
 FFT::FFT() : IModule({"FFT", "FFT-module.so", "FFT.json"}) {}
 
 bool FFT::init() {
+    m_buffer = GpuFloatSignal(m_overlapSize * 2);
+
+    const auto planStatus = cufftPlan1d(&m_prefixPlan, m_buffer.availableSize(), CUFFT_R2C, 1);
+    if (planStatus != CUFFT_SUCCESS) {
+        ERROR << "FFT::initPlan: cufftPlanMany failed: " << cufftResultToString(planStatus) << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -74,14 +82,6 @@ bool FFT::initPlan(){
         return false;
     }
 
-    /*
-    if ((inputSize % m_fftSize) != 0) {
-        ERROR << "FFT::initPlan: input size (" << inputSize
-              << ") is not multiple of fft size (" << m_fftSize << ")." << std::endl;
-        return false;
-    }
-    */
-
     m_plan = 0;
     int n[1] = {static_cast<int>(m_fftSize)};
     const int istride = 1;
@@ -111,6 +111,17 @@ bool FFT::initPlan(){
 }
 
 bool FFT::run() {
+    size_t prefixOffset = 0;
+    if(not m_isFirtFft){
+        prefixOffset = (m_fftSize / 2) + 1;
+        const auto prefixStatus = cufftExecR2C(m_prefixPlan, m_buffer.getDeviceData(), m_outData->getDeviceData());
+        if (prefixStatus != CUFFT_SUCCESS) {
+            ERROR << "FFT::run: prefix cufftExecR2C failed: " << cufftResultToString(prefixStatus) << std::endl;
+            return false;
+        }
+        INFO << "FFT::run: prefix cufftExecR2C completed." << std::endl;
+    }
+
     if(not prepareData()) {
         return false;
     }
@@ -119,11 +130,20 @@ bool FFT::run() {
         return false;
     }
 
-    const auto execStatus = cufftExecR2C(m_plan, m_inData->getDeviceData(), m_outData->getDeviceData());
+    const auto prefixErr = cudaMemcpy(m_buffer.getDeviceData(),
+        m_inData->getDeviceData() + (m_inData->size() - m_overlapSize),
+        m_overlapSize * sizeof(float), cudaMemcpyDeviceToDevice
+    );
+
+    if(prefixErr != cudaSuccess){
+        ERROR << "FFT::run: prefix cudaMemcpy failed: " << cudaGetErrorString(prefixErr) << std::endl;
+        return false;
+    }
+
+    const auto execStatus = cufftExecR2C(m_plan, m_inData->getDeviceData(), m_outData->getDeviceData() + prefixOffset);
     if (execStatus != CUFFT_SUCCESS) {
         ERROR << "FFT::run: cufftExecR2C failed: " << cufftResultToString(execStatus) << std::endl;
         cufftDestroy(m_plan);
-        m_outData = std::make_shared<GpuComplexFloatSignal>();
         return false;
     }
 
@@ -134,12 +154,18 @@ bool FFT::run() {
         return false;
     }
 
+    m_isFirtFft = false;
+
     return true;
 }
 
 void FFT::setParam(const std::string& paramName, const std::any& value) {
     if(paramName == "fft size"){
         m_fftSize = std::any_cast<int32_t>(value);
+    }
+
+    if(paramName == "overlap size"){
+        m_overlapSize = std::any_cast<int32_t>(value);
     }
 }
 
@@ -155,11 +181,6 @@ bool FFT::setData(std::shared_ptr<IData> data) {
         return false;
     }
 
-    if (m_fftSize == 0) {
-        ERROR << "FFT::setData: fft size is zero." << std::endl;
-        return false;
-    }
-
     const auto inputSize = gpuData->size();
     if (inputSize == 0) {
         ERROR << "FFT::setData: input signal has zero size." << std::endl;
@@ -172,21 +193,22 @@ bool FFT::setData(std::shared_ptr<IData> data) {
         return false;
     }
 
-    /*
-    if ((inputSize % m_fftSize) != 0) {
-        ERROR << "FFT::setData: input size (" << inputSize
-              << ") is not multiple of fft size (" << m_fftSize << ")." << std::endl;
-        return false;
-    }
-    */
 
     const auto batch = inputSize / m_fftSize;
     const auto outputPerBatch = (m_fftSize / 2) + 1;
-    const auto outputSize = batch * outputPerBatch;
+    const auto outputSize = outputPerBatch * (batch + int32_t(!m_isFirtFft));
     auto outData = std::make_shared<GpuComplexFloatSignal>(outputSize);
     if (!outData || !outData->isValid()) {
         ERROR << "FFT::setData: failed to allocate output GPU buffer, size = " << outputSize << std::endl;
         return false;
+    }
+
+    if(not m_isFirtFft){
+        const auto err = cudaMemcpy(m_buffer.getDeviceData() + m_overlapSize, gpuData->getDeviceData(), m_overlapSize * sizeof(float), cudaMemcpyDeviceToDevice);
+        if (err != cudaSuccess) {
+            ERROR << "FFT::setData: prefix cudaMemcpy failed: " << cudaGetErrorString(err) << std::endl;
+            return false;
+        }
     }
 
     m_inData = gpuData;

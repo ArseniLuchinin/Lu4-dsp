@@ -24,6 +24,7 @@ bool SpectrogramPlot::init() {
     return true;
 }
 
+int32_t i = 0;
 bool SpectrogramPlot::run() {
     if (!m_data || !m_data->isValid()) {
         ERROR << "SpectrogramPlot::run: input data is null or invalid." << std::endl;
@@ -92,7 +93,7 @@ bool SpectrogramPlot::run() {
         }
     }
 
-    const std::string outPath = m_savePath.empty() ? "spectrogram.png" : m_savePath;
+    const std::string outPath = m_savePath.empty() ? "spectrogram" + std::to_string(i) + ".png" : m_savePath + std::to_string(i) + ".png";
     if (!cv::imwrite(outPath, image)) {
         ERROR << "SpectrogramPlot::run: failed to save image to " << outPath << std::endl;
         return false;
@@ -103,6 +104,7 @@ bool SpectrogramPlot::run() {
         INFO << "SpectrogramPlot::run: show=true is set, but interactive preview is not implemented." << std::endl;
     }
 
+    ++i;
     return true;
 }
 

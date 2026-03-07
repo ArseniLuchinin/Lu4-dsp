@@ -9,10 +9,6 @@
 #include <GpuFloatSignal.hpp>
 #include <module.hpp>
 
-namespace {
-    constexpr size_t MAX_SIZE = 1'000'000'000;
-}
-
 IModule* createModule() {
     return new FileSrc();
 }
@@ -28,7 +24,7 @@ bool FileSrc::init() {
     }
 
     const auto fileSize = std::filesystem::file_size(m_fileName);
-    m_stepSize = (fileSize > MAX_SIZE) ? MAX_SIZE : fileSize;
+    m_stepSize = (fileSize > m_maxSize) ? m_maxSize : fileSize;
 
 
     m_file = std::ifstream(m_fileName, std::ios::in | std::ios::binary);
@@ -54,6 +50,11 @@ bool FileSrc::run() {
 void FileSrc::setParam(const std::string& paramName, const std::any& value) {
     if(paramName == "file name") {
         m_fileName = std::any_cast<std::string>(value);
+        return;
+    }
+
+    if(paramName == "max size") {
+        m_maxSize = std::any_cast<size_t>(value);
         return;
     }
 

@@ -59,15 +59,35 @@ bool Conveyor::run() {
     std::cout << "Conveyor '" << m_conveyorName << "' running payload." << std::endl;
     if(m_modules.empty())
         return false;
+
+    while(iterate());
     
+
+    return true; // В реальном приложении может возвращать результат обработки
+}
+
+bool Conveyor::iterate() {
     auto module = m_modules.front();
     if(not module->run()){
         std::cerr << "Fail to run: " << module->getMetaData().moduleName << std::endl;
         return false;
     }
     auto data = module->getData();
+
+    if(data->size() == 0){
+        std::cout << "! finished" << std::endl;
+        return false;
+    }
+    std::cout << "!" << module->getMetaData().moduleName << " Success run" << std::endl;
+
     for(size_t i = 1; i < m_modules.size(); ++i){
         module = m_modules[i];
+
+        if(not data->isValid()){
+            std::cerr << "Invalid data from: " << module->getMetaData().moduleName << std::endl;
+            return false;
+        }
+
         if (module) {
             if(not module->setData(data)){
                 std::cerr << "Fail to init data: " << module->getMetaData().moduleName << std::endl;
@@ -79,15 +99,9 @@ bool Conveyor::run() {
                 return false;
             }
 
+            std::cout << "!" << module->getMetaData().moduleName << " Success run" << std::endl;
             data = module->getData();
-            if(not data->isValid()){
-                std::cerr << "Invalid data from: " << module->getMetaData().moduleName << std::endl;
-                return false;
-            }
         }
     }
-
-    auto signal = CpuFloatSignal::fromGpu(data);
-    std::cout << signal->getData()[0] << std::endl;
-    return true; // В реальном приложении может возвращать результат обработки
+    return true;
 }

@@ -21,6 +21,9 @@ public:
     std::string getName() const;
     bool getIsInitialized() const;
 
+    bool iterate();
+
+
 private:
     std::string m_conveyorName;
     bool m_isInitialized;

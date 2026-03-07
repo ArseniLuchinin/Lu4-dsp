@@ -35,9 +35,18 @@ target_link_libraries(computing_server
         logger
 )
 
-add_subdirectory(Modules/FileSrc)
-add_subdirectory(Modules/SumReduce)
-add_subdirectory(Modules/SignalPlot)
-add_subdirectory(Modules/SpectrogramPlot)
-add_subdirectory(Modules/FFT)
-add_subdirectory(Modules/CS2AS)
+function(add_all_subdirs DIR_PATH)
+    file(GLOB SUBDIRS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/${DIR_PATH} 
+         ${DIR_PATH}/*)
+    foreach(SUBDIR ${SUBDIRS})
+        set(FULL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${DIR_PATH}/${SUBDIR}")
+        if(IS_DIRECTORY ${FULL_PATH} AND 
+           EXISTS "${FULL_PATH}/CMakeLists.txt")
+            message(STATUS "Добавляю поддиректорию: ${SUBDIR}")
+            add_subdirectory(${DIR_PATH}/${SUBDIR})
+            message("found module: ${DIR_PATH}/${SUBDIR}")
+        endif()
+    endforeach()
+endfunction()
+
+add_all_subdirs("Modules")
