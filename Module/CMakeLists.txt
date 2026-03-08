@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(${PROJECT_NAME} SHARED
     include/IModule.hpp
+    src/IVirtualRxModule.cpp
 )
 
 target_include_directories(${PROJECT_NAME}
