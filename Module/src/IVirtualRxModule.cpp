@@ -16,5 +16,7 @@ std::shared_ptr<IData> IVirtualRxModule::rxData() {
     if (m_tag.empty()) {
         return nullptr;
     }
-    return VirtualTransmitter::instance().rxData(m_tag);
+
+    VirtualTransmitter transmitter;
+    return transmitter.waitRxData(m_tag);
 }

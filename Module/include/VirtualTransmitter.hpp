@@ -4,35 +4,33 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <condition_variable>
 #include <string>
 
 #include <IData.hpp>
 
 /*!
- * @brief Синглтон-класс виртуальной передачи данных
- * @details Отвечает за хранение и тэго и передачи указателей на данные
+ * @brief Класс виртуальной передачи данных
+ * @details Использует общее статическое хранилище тегированных указателей
 */
 class VirtualTransmitter {
 public:
-    static VirtualTransmitter& instance();
-
-    VirtualTransmitter(const VirtualTransmitter&) = delete;
-    VirtualTransmitter& operator=(const VirtualTransmitter&) = delete;
-    VirtualTransmitter(VirtualTransmitter&&) = delete;
-    VirtualTransmitter& operator=(VirtualTransmitter&&) = delete;
+    VirtualTransmitter() = default;
+    ~VirtualTransmitter() = default;
 
     bool findTeg(const std::string& name);
     bool checkData(const std::string& name);
 
     std::shared_ptr<IData> rxData(const std::string& name);
+    std::shared_ptr<IData> waitRxData(const std::string& name);
     void txData(const std::shared_ptr<IData>& data, const std::string& name);
 
 private:
-    VirtualTransmitter() = default;
-    ~VirtualTransmitter() = default;
+    static std::condition_variable& getTagCvUnlocked(const std::string& name);
 
-    std::map<std::string, std::shared_ptr<IData> > m_transmitter;
-    std::mutex m_mutex;
+    static std::map<std::string, std::shared_ptr<IData> > s_transmitter;
+    static std::map<std::string, std::condition_variable> s_tagEvents;
+    static std::mutex s_mutex;
 };
 
 #endif // VIRTUAL_TRANSMITTER_HPP
