@@ -1,9 +1,20 @@
 #include <IVirtualRxModule.hpp>
+#include <VirtualTransmitter.hpp>
+
+IVirtualRxModule::IVirtualRxModule()
+    : IModule({"IVirtualRxModule", "IVirtualRxModule", "IVirtualRxModule"})
+{}
+
+IVirtualRxModule::~IVirtualRxModule() = default;
 
 bool IVirtualRxModule::setTag(const std::string& tag) {
-    return true;
+    m_tag = tag;
+    return !m_tag.empty();
 }
 
 std::shared_ptr<IData> IVirtualRxModule::rxData() {
-
+    if (m_tag.empty()) {
+        return nullptr;
+    }
+    return VirtualTransmitter::instance().rxData(m_tag);
 }

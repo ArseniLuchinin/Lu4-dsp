@@ -1,18 +1,20 @@
-#ifndef VIRTUALTRANSMITTER_CPP
-#define VIRTUALTRANSMITTER_CPP
+#ifndef I_VIRTUAL_RX_MODULE_HPP
+#define I_VIRTUAL_RX_MODULE_HPP
 
 #include <IModule.hpp>
 #include <IData.hpp>
-
-#include <map>
+#include <string>
 
 class IVirtualRxModule : public IModule {
 public:
     IVirtualRxModule();
-    ~IVirtualRxModule();
+    virtual ~IVirtualRxModule();
 
     bool setTag(const std::string& tag);
     std::shared_ptr<IData> rxData();
+
+protected:
+    std::string m_tag;
 };
 
-#endif // VIRTUALTRANSMITTER_CPP
+#endif // I_VIRTUAL_RX_MODULE_HPP

@@ -1,18 +1,33 @@
-#ifndef VIRTUALTRANSMITTER_CPP
-#define VIRTUALTRANSMITTER_CPP
+#ifndef VIRTUAL_TX_HPP
+#define VIRTUAL_TX_HPP
+
+#include <IModule.hpp>
+#include <IData.hpp>
+#include <any>
+#include <memory>
+#include <string>
 
 /*! @brief Класс модуля перенаправелния принатых данных в другой конвеер
  * @note Данные принимаются как выход одного конвеера, 
  * передаются в модуль поддвержиющи виртуальную передачу
  * Связь <Conveyor> -> <Moudle>
 */
-class VirtualTransmitter
-{
-private:
-    /* data */
+class VirtualTX : public IModule {
 public:
-    VirtualTransmitter();
-    ~VirtualTransmitter();
+    VirtualTX();
+    ~VirtualTX() override;
+
+    bool init() override;
+    bool run() override;
+
+    void setParam(const std::string& paramName, const std::any& value) override;
+
+    bool setData(std::shared_ptr<IData> data) override;
+    std::shared_ptr<IData> getData() override;
+
+private:
+    std::string m_tag;
+    std::shared_ptr<IData> m_data;
 };
 
-#endif // VIRTUALTRANSMITTER_CPP
+#endif // VIRTUAL_TX_HPP
