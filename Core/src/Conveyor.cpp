@@ -10,7 +10,7 @@ Conveyor::Conveyor(const std::string& name)
     : m_conveyorName(name)
     , m_isInitialized(false)
     , logger(boost::log::keywords::channel = name) {
-    std::cout << "Conveyor '" << m_conveyorName << "' created." << std::endl;
+    INFO << "Conveyor '" << m_conveyorName << "' created." << std::endl;
 }
 
 const std::vector<std::shared_ptr<IModule>>& Conveyor::getModules() const {
@@ -28,26 +28,29 @@ bool Conveyor::getIsInitialized() const {
 void Conveyor::addModule(std::shared_ptr<IModule> module) {
     if (module) {
         m_modules.push_back(module);
-        std::cout << "Module added to conveyor '" << m_conveyorName << "'. Total modules: " << m_modules.size() << std::endl;
+        INFO << "Module added to conveyor '" << m_conveyorName << "'. Total modules: " << m_modules.size() << std::endl;
     } else {
-        std::cerr << "Attempted to add a null module to conveyor '" << m_conveyorName << "'." << std::endl;
+        ERROR << "Attempted to add a null module to conveyor '" << m_conveyorName << "'." << std::endl;
     }
 }
 
 void Conveyor::removeModule(size_t index) {
     if (index < m_modules.size()) {
-        std::cout << "Removing module at index " << index << " from conveyor '" << m_conveyorName << "'." << std::endl;
+        INFO << "Removing module at index " << index << " from conveyor '" << m_conveyorName << "'." << std::endl;
         m_modules.erase(m_modules.begin() + index);
     } else {
-        std::cerr << "Error: Index " << index << " out of bounds for conveyor '" << m_conveyorName << "'." << std::endl;
+        ERROR << "Error: Index " << index << " out of bounds for conveyor '" << m_conveyorName << "'." << std::endl;
     }
 }
 
 
 bool Conveyor::init() {
+    if(m_modules.empty())
+        return false;
+
     for(auto& module : m_modules){
         if(not module->init()){
-            std::cerr << "[Conveyor: " << m_conveyorName << "] Failed to initialize module '" << module->getMetaData().moduleName << "'" << std::endl;
+            ERROR << "Failed to initialize module" << std::endl;
             return false;
         }
     }
@@ -57,19 +60,15 @@ bool Conveyor::init() {
 }
 
 bool Conveyor::run() {
-    std::cout << "Conveyor '" << m_conveyorName << "' running payload." << std::endl;
-    if(m_modules.empty())
-        return false;
-
     auto module = m_modules.front();
     if(not module->run()){
-        std::cerr << "Fail to run: " << module->getMetaData().moduleName << std::endl;
+        ERROR << "Fail to run: " << module->getMetaData().moduleName << std::endl;
         return false;
     }
 
     auto data = module->getData();
     if(data->size() == 0){
-        std::cout << "! finished" << std::endl;
+        INFO << "finished" << std::endl;
         return false;
     }
 
@@ -77,13 +76,13 @@ bool Conveyor::run() {
         module = m_modules[i];
 
         if(not data->isValid()){
-            std::cerr << "Invalid data from: " << module->getMetaData().moduleName << std::endl;
+            ERROR << "Invalid data from: " << module->getMetaData().moduleName << std::endl;
             return false;
         }
 
         if (module) {
             if(not module->setData(data)){
-                std::cerr << module->getMetaData().moduleName << "Con't use data tupe: " << data->getDataName() << std::endl;
+                ERROR << module->getMetaData().moduleName << "Con't use data tupe: " << data->getDataName() << std::endl;
                 return false;
             }
             
@@ -92,7 +91,7 @@ bool Conveyor::run() {
                 return false;
             }
 
-            std::cout << "!" << module->getMetaData().moduleName << " Success run" << std::endl;
+            INFO << module->getMetaData().moduleName << " Success run" << std::endl;
             data = module->getData();
         }
     }

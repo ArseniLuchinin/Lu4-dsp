@@ -2,6 +2,7 @@
 #include <dlfcn.h>
 #include <cstdlib>
 #include <iostream>
+#include <logger.hpp>
 
 
 namespace {
@@ -15,7 +16,8 @@ namespace {
 }
 
 ModuleFactory::ModuleFactory(const std::string& modulesDir) : 
-    m_redis(createConnection()) {
+    m_redis(createConnection()), 
+    logger(boost::log::keywords::channel = "ModuleFactory") {
 }
 
 IModule* ModuleFactory::createModule(const std::string& moduleName) {
@@ -25,19 +27,18 @@ IModule* ModuleFactory::createModule(const std::string& moduleName) {
 
     void* moduleHandle = dlopen(libPath.c_str(), RTLD_LAZY);
     if (!moduleHandle) {
-        std::cout << dlerror() << std::endl;
+        ERROR << dlerror() << std::endl;
         return nullptr;
     }
-    std::cout << "Module loaded: " << moduleName << std::endl;
+    INFO << "Module loaded: " << moduleName << std::endl;
 
     using createModule_t = IModule* (*)();
     createModule_t module = (createModule_t) dlsym(moduleHandle, "createModule");
     if (!module) {
-        std::cout << dlerror() << std::endl;
-        dlclose(moduleHandle);
+        ERROR << dlclose(moduleHandle);
         return nullptr;
     }
-    std::cout << "Module created" << std::endl;
+    INFO << "Module created" << std::endl;
 
     return module();
 }

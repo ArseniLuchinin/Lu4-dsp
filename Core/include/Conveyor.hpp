@@ -9,8 +9,6 @@
 
 class Conveyor {
 public:
-    inline explicit Conveyor() : logger(boost::log::keywords::channel = mData.moduleName) {}
-
     bool init();
     bool run();
     

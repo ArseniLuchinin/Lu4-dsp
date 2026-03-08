@@ -85,10 +85,16 @@ bool FileSrc::readFile() {
         try{
             m_file.read(m_hostBuffer, m_stepSize);
         }
-        catch(std::exception e){
-            std::cout << e.what() << std::endl;
+        catch(std::ios::failure e){
+            if(m_file.eof()){
+                m_data = std::make_shared<GpuFloatSignal>(0);
+                return true;
+            }
+
+            ERROR << e.what() << std::endl;
             return false;
         }
+
         if(m_file.fail() or not m_file.good()){
             return false;
         }

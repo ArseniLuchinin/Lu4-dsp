@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <logger.hpp>
 
 class ModuleFactory {
     /// @brief Список модулей и директории с .so файлом и метаданными 
@@ -23,6 +24,10 @@ public:
     IModule* createModule(const std::string& moduleName);
 
 private:
+    src::severity_channel_logger<
+        logging::trivial::severity_level
+    > logger;
+
     sw::redis::Redis m_redis;
     modulesPackage_t modulesPackage;
 };

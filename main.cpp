@@ -8,6 +8,7 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/utility/setup/console.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/log/support/date_time.hpp> 
 
 
 namespace logging = boost::log;
@@ -23,6 +24,8 @@ void init_logging()
             (
                 expr::stream
                     << "[" << expr::attr<unsigned int>("LineID") << "] "
+                    << "[" << expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%H:%M:%S.%f") << "] "
+                    << "[" << expr::attr<boost::log::trivial::severity_level>("Severity") << "] " 
                     << "[" << expr::attr<std::string>("Channel") << "] "
                     << expr::smessage
             )
@@ -30,6 +33,7 @@ void init_logging()
 
     logging::add_common_attributes();
 }
+
 
 int32_t main(int argc, char const *argv[])
 {
