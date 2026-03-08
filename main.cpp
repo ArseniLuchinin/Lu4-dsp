@@ -38,7 +38,7 @@ int32_t main(int argc, char const *argv[])
     }
 
     const int32_t fftSize = 4096;
-    const int32_t sampleFreq = 192'000;
+    const int32_t sampleFreq = 2'097'152;
     init_logging();
     ModuleFactory factory(".");
 
@@ -46,7 +46,7 @@ int32_t main(int argc, char const *argv[])
     std::shared_ptr<IModule> srcModule = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
     srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/am_signal.bin"));
     srcModule->setParam("data type", std::string("float"));
-    srcModule->setParam("max size", size_t(1'048'576));
+    srcModule->setParam("max size", size_t(std::pow(2, 25)));
 
     std::shared_ptr<IModule> firModule = std::shared_ptr<IModule>(factory.createModule("FIR-filter"));
     firModule->setParam("sample rate", sampleFreq);
@@ -82,11 +82,9 @@ int32_t main(int argc, char const *argv[])
         return 1;
     }
 
-    if(not conveyor.run()){
-        std::cout << "Error run" << std::endl;
-        return -1;
-    }
+    while(conveyor.run()){}
+   
 
-    std::cout << "Success" << std::endl;
+    std::cout << "Conveyor " << conveyor.getName() << "is stop" << std::endl;
     return 0;
 }

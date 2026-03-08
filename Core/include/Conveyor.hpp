@@ -5,9 +5,11 @@
 #include <vector>
 #include <memory>
 #include </home/luchinin/my_source/Course_poject/Server/Module/include/IModule.hpp>
+#include <logger.hpp>
 
 class Conveyor {
 public:
+    inline explicit Conveyor() : logger(boost::log::keywords::channel = mData.moduleName) {}
 
     bool init();
     bool run();
@@ -21,10 +23,11 @@ public:
     std::string getName() const;
     bool getIsInitialized() const;
 
-    bool iterate();
-
-
 private:
+    src::severity_channel_logger<
+        logging::trivial::severity_level
+    > logger;
+
     std::string m_conveyorName;
     bool m_isInitialized;
     std::vector<std::shared_ptr<IModule>> m_modules;

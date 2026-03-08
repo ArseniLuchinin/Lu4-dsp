@@ -8,7 +8,8 @@
 
 Conveyor::Conveyor(const std::string& name)
     : m_conveyorName(name)
-    , m_isInitialized(false) {
+    , m_isInitialized(false)
+    , logger(boost::log::keywords::channel = name) {
     std::cout << "Conveyor '" << m_conveyorName << "' created." << std::endl;
 }
 
@@ -60,25 +61,17 @@ bool Conveyor::run() {
     if(m_modules.empty())
         return false;
 
-    while(iterate());
-    
-
-    return true; // В реальном приложении может возвращать результат обработки
-}
-
-bool Conveyor::iterate() {
     auto module = m_modules.front();
     if(not module->run()){
         std::cerr << "Fail to run: " << module->getMetaData().moduleName << std::endl;
         return false;
     }
-    auto data = module->getData();
 
+    auto data = module->getData();
     if(data->size() == 0){
         std::cout << "! finished" << std::endl;
         return false;
     }
-    std::cout << "!" << module->getMetaData().moduleName << " Success run" << std::endl;
 
     for(size_t i = 1; i < m_modules.size(); ++i){
         module = m_modules[i];
@@ -90,12 +83,12 @@ bool Conveyor::iterate() {
 
         if (module) {
             if(not module->setData(data)){
-                std::cerr << "Fail to init data: " << module->getMetaData().moduleName << std::endl;
+                std::cerr << module->getMetaData().moduleName << "Con't use data tupe: " << data->getDataName() << std::endl;
                 return false;
             }
             
             if(not module->run()){
-                std::cerr << "Fail to run: " << module->getMetaData().moduleName << std::endl;
+                ERROR << "Fail to run: " << module->getMetaData().moduleName << std::endl;
                 return false;
             }
 
