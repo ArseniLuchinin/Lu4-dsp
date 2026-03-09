@@ -1,4 +1,5 @@
 #include <VirtualTransmitter.hpp>
+#include <iostream>
 
 std::map<std::string, std::shared_ptr<IData> > VirtualTransmitter::s_transmitter;
 std::map<std::string, std::condition_variable> VirtualTransmitter::s_tagEvents;
@@ -53,6 +54,7 @@ std::shared_ptr<IData> VirtualTransmitter::waitRxData(const std::string& name) {
 void VirtualTransmitter::txData(const std::shared_ptr<IData>& data, const std::string& name) {
     std::lock_guard<std::mutex> lock(s_mutex);
     s_transmitter[name] = data;
+    std::cout << "Data " << data->getDataName() << " was transmitted to " << name << std::endl;
 
     auto it = s_tagEvents.find(name);
     if (it != s_tagEvents.end()) {

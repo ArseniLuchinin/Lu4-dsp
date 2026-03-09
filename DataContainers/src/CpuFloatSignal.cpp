@@ -34,6 +34,7 @@ std::shared_ptr<CpuFloatSignal> CpuFloatSignal::fromGpu(std::shared_ptr<IData> i
 CpuFloatSignal::~CpuFloatSignal() {
     if (m_data) {
         delete[] m_data;
+        m_size = 0;
         m_data = nullptr;
     }
 }

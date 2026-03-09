@@ -36,7 +36,10 @@ private:
     int   m_blockSize;
     float m_lowCutoff;
     float m_highCutoff;
+    //std::vector<float> m_coeff;
     std::shared_ptr<CpuFloatSignal> m_data;
+
+    bool m_isComputed = false;
 };
 
 #endif // BAND_PASS_COMPUTE_HPP

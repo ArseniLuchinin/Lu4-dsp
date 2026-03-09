@@ -23,7 +23,7 @@ public:
 
     float* getData() const;
 
-    size_t availableSize() const {
+    size_t availableSize() const override {
         return m_size;
     }
 
