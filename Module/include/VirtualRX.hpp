@@ -5,10 +5,10 @@
 #include <IData.hpp>
 #include <string>
 
-class IVirtualRxModule : public IModule {
+class VirtualRX {
 public:
-    IVirtualRxModule();
-    virtual ~IVirtualRxModule();
+    VirtualRX();
+    virtual ~VirtualRX();
 
     bool setTag(const std::string& tag);
     std::shared_ptr<IData> rxData();
