@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 
 #include <GpuFloatSignal.hpp>
+#include <GpuComplexSignal.hpp>
 #include <module.hpp>
 
 IModule* createModule() {
@@ -60,8 +61,10 @@ void FileSrc::setParam(const std::string& paramName, const std::any& value) {
 
     if(paramName == "data type") {
         auto valueStr = std::any_cast<std::string>(value);
-        if(valueStr == "float") 
+        if(valueStr == "float")
             m_type = DataType::Float;
+        if(valueStr == "complex")
+            m_type = DataType::ComplexFloat;
         return;
     }
 }
@@ -77,9 +80,17 @@ std::shared_ptr<IData> FileSrc::getData() {
 bool FileSrc::readFile() {
     m_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     if(m_file.is_open()) {
-        std::shared_ptr<GpuFloatSignal> tryData = std::shared_ptr<GpuFloatSignal>(new GpuFloatSignal(m_stepSize/sizeof(float)));
-        if(tryData->size() <= 0) {
+        const size_t elementSize = (m_type == DataType::Float) ? sizeof(float) : sizeof(cuComplex);
+        const size_t elementCount = m_stepSize / elementSize;
+        if (elementCount == 0) {
             return false;
+        }
+
+        std::shared_ptr<IData> tryData;
+        if (m_type == DataType::Float) {
+            tryData = std::shared_ptr<GpuFloatSignal>(new GpuFloatSignal(elementCount));
+        } else {
+            tryData = std::shared_ptr<GpuComplexFloatSignal>(new GpuComplexFloatSignal(elementCount));
         }
 
         try{
@@ -87,7 +98,11 @@ bool FileSrc::readFile() {
         }
         catch(std::ios::failure e){
             if(m_file.eof()){
-                m_data = std::make_shared<GpuFloatSignal>(0);
+                if (m_type == DataType::Float) {
+                    m_data = std::make_shared<GpuFloatSignal>(0);
+                } else {
+                    m_data = std::make_shared<GpuComplexFloatSignal>(0);
+                }
                 return true;
             }
 
@@ -102,9 +117,19 @@ bool FileSrc::readFile() {
         if(m_hostBuffer == nullptr)
             return false;
 
-        const auto readedSize = m_file.gcount() / sizeof(float);
+        const auto readedSize = m_file.gcount() / elementSize;
         INFO << "Readed size: " << readedSize << " from file: " << m_fileName << std::endl;
-        tryData->setDataFromHost((float*)m_hostBuffer, readedSize);
+        if (m_type == DataType::Float) {
+            std::dynamic_pointer_cast<GpuFloatSignal>(tryData)->setDataFromHost(
+                reinterpret_cast<float*>(m_hostBuffer),
+                readedSize
+            );
+        } else {
+            std::dynamic_pointer_cast<GpuComplexFloatSignal>(tryData)->setDataFromHost(
+                reinterpret_cast<cuComplex*>(m_hostBuffer),
+                readedSize
+            );
+        }
         m_data = tryData;
         return true;
     }

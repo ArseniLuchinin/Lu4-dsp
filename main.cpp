@@ -77,8 +77,8 @@ int32_t main(int argc, char const *argv[])
 
     Conveyor conveyor("Main conveyor");
     std::shared_ptr<IModule> srcModule = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
-    srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/am_signal.bin"));
-    srcModule->setParam("data type", std::string("float"));
+    srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/amc_signal.bin"));
+    srcModule->setParam("data type", std::string("complex"));
     srcModule->setParam("max size", size_t(std::pow(2, 25)));
 
     std::shared_ptr<IModule> firModule = std::shared_ptr<IModule>(factory.createModule("FIR-filter"));
@@ -96,11 +96,12 @@ int32_t main(int argc, char const *argv[])
     std::shared_ptr<IModule> spectrogramm = std::shared_ptr<IModule>(factory.createModule("SpectrogramPlot"));
     spectrogramm->setParam("sample rate", sampleFreq);
     spectrogramm->setParam("fft size", fftSize);
+    spectrogramm->setParam("window size", fftSize);
     spectrogramm->setParam("save path", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogramm"));
 
 
     conveyor.addModule(srcModule);
-    conveyor.addModule(firModule);
+    //conveyor.addModule(firModule);
     conveyor.addModule(fftMobule);
     conveyor.addModule(magnitureModyule);
     conveyor.addModule(spectrogramm);

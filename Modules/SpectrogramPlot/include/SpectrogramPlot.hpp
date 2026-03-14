@@ -24,6 +24,7 @@ public:
 private:
     size_t m_sampleRate = 1;
     size_t m_fftSize = 1024;
+    size_t m_windowSize = 0;
     size_t m_freqBins = 0;
 
     bool m_isShow = true;

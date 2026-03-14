@@ -36,7 +36,11 @@ bool SpectrogramPlot::run() {
         return false;
     }
 
-    m_freqBins = (m_fftSize / 2) + 1;
+    if (m_windowSize > 0) {
+        m_freqBins = m_windowSize;
+    } else {
+        m_freqBins = (m_fftSize / 2) + 1;
+    }
     if (m_freqBins == 0) {
         ERROR << "SpectrogramPlot::run: frequency bins count is zero." << std::endl;
         return false;
@@ -116,6 +120,11 @@ void SpectrogramPlot::setParam(const std::string& paramName, const std::any& val
 
     if (paramName == "fft size") {
         m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        return;
+    }
+
+    if (paramName == "window size") {
+        m_windowSize = static_cast<size_t>(std::any_cast<int32_t>(value));
         return;
     }
 

@@ -32,7 +32,7 @@ public:
     bool readFile();
 
 protected:
-    DataType m_type;
+    DataType m_type = DataType::Float;
 
     size_t m_maxSize;
     std::string m_fileName;
