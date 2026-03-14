@@ -8,13 +8,20 @@
 #include <cufft.h>
 
 #include <memory>
+#include <variant>
 
 class FFT : public IModule {
+    using GpuFloatSignalPtr = std::shared_ptr<GpuFloatSignal>;
+    using GpuComplexFloatSignalPtr = std::shared_ptr<GpuComplexFloatSignal>;
+    using SignalPtr = std::variant<GpuComplexFloatSignalPtr, GpuFloatSignalPtr>;
+
 public:
     FFT();
     ~FFT() override;
 
     bool init() override;
+
+
     bool run() override;
 
     void setParam(const std::string& paramName, const std::any& value) override;
@@ -23,14 +30,14 @@ public:
     std::shared_ptr<IData> getData() override;
 
 private:
-    bool prepareData();
     bool initPlan();
+
     bool initPrefixPlan();
-    bool validateOverlap();
     bool saveInputTailToBuffer();
     bool executeStitchFft();
 
     std::shared_ptr<GpuFloatSignal> m_inData;
+    SignalPtr m_inDataPtr;
     std::shared_ptr<GpuComplexFloatSignal> m_outData;
 
     cufftHandle m_plan = 0;

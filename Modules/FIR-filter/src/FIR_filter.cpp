@@ -31,11 +31,6 @@ bool FIRFilter::init()
     std::shared_ptr<CpuFloatSignal> rx = std::dynamic_pointer_cast<CpuFloatSignal>(rxData());
     INFO << "rx: " << rx->getDataName() << " size: " << rx->size() << std::endl;
 
-    if(rx->size() > MAX_FIR_LENGTH){
-        ERROR << "rx data size is too big: " << rx->size() << "for: " << MAX_FIR_LENGTH << std::endl;
-        return false;
-    }
-
     // Копируем в constant memory
     const auto err = cudaMemcpyToSymbol(d_h, rx->getData(), m_M * sizeof(float));
     if(err != cudaSuccess){

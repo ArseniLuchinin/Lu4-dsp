@@ -59,6 +59,7 @@ template<typename T, typename Tag>
 bool GpuSignal<T, Tag>::reserve(const size_t size) {
     if (size == 0) {
         freeData();
+        m_siValid = false;
         return true;
     }
 
