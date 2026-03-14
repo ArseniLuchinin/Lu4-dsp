@@ -14,6 +14,7 @@ class FFT : public IModule {
     using GpuFloatSignalPtr = std::shared_ptr<GpuFloatSignal>;
     using GpuComplexFloatSignalPtr = std::shared_ptr<GpuComplexFloatSignal>;
     using SignalPtr = std::variant<GpuComplexFloatSignalPtr, GpuFloatSignalPtr>;
+    enum class InputKind { Real, Complex };
 
 public:
     FFT();
@@ -36,15 +37,20 @@ private:
     bool saveInputTailToBuffer();
     bool executeStitchFft();
 
-    std::shared_ptr<GpuFloatSignal> m_inData;
     SignalPtr m_inDataPtr;
+    InputKind m_inputKind = InputKind::Real;
+
+    cufftType m_planType = CUFFT_R2C;
+    size_t m_outputPerBatch = 0;
     std::shared_ptr<GpuComplexFloatSignal> m_outData;
 
     cufftHandle m_plan = 0;
 
     cufftHandle m_prefixPlan = 0;
-    GpuFloatSignal m_prefixInput;
-    GpuFloatSignal m_buffer;
+    GpuFloatSignal m_prefixInputReal;
+    GpuFloatSignal m_bufferReal;
+    GpuComplexFloatSignal m_prefixInputComplex;
+    GpuComplexFloatSignal m_bufferComplex;
     bool m_isFirstFft = true;
 
     size_t m_fftSize = 1024;
