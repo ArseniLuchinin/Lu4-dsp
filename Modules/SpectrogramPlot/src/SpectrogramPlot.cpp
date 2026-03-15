@@ -97,8 +97,61 @@ bool SpectrogramPlot::run() {
         }
     }
 
+    const int topMargin = 30;
+    const int leftMargin = 60;
+    const int rightMargin = 10;
+    const int bottomMargin = 10;
+    const int canvasWidth = leftMargin + static_cast<int>(m_freqBins) + rightMargin;
+    const int canvasHeight = topMargin + static_cast<int>(rows) + bottomMargin;
+
+    cv::Mat canvas(canvasHeight, canvasWidth, CV_8UC3, cv::Scalar(255, 255, 255));
+    image.copyTo(canvas(cv::Rect(leftMargin, topMargin, image.cols, image.rows)));
+
+    const int font = cv::FONT_HERSHEY_SIMPLEX;
+    const double fontScale = 0.4;
+    const int thickness = 1;
+    const cv::Scalar color(0, 0, 0);
+
+    const bool isRealSpectrum = (m_freqBins == (m_fftSize / 2 + 1));
+    double freqMin = 0.0;
+    double freqMax = 0.0;
+    if (m_hasFreqRange) {
+        freqMin = m_freqMin;
+        freqMax = m_freqMax;
+    } else if (isRealSpectrum) {
+        freqMin = 0.0;
+        freqMax = m_sampleRate / 2.0;
+    } else if (m_centeredSpectrum) {
+        freqMin = -static_cast<double>(m_sampleRate) / 2.0;
+        freqMax = static_cast<double>(m_sampleRate) / 2.0;
+    } else {
+        freqMin = 0.0;
+        freqMax = static_cast<double>(m_sampleRate);
+    }
+    const int freqTicks = 5;
+    for (int t = 0; t <= freqTicks; ++t) {
+        const double frac = static_cast<double>(t) / freqTicks;
+        const int x = leftMargin + static_cast<int>(std::round(frac * (m_freqBins - 1)));
+        const double freq = freqMin + (freqMax - freqMin) * frac;
+        const std::string label = std::to_string(static_cast<int>(std::round(freq)));
+        cv::putText(canvas, label, cv::Point(x - 10, topMargin - 8), font, fontScale, color, thickness);
+        cv::line(canvas, cv::Point(x, topMargin - 5), cv::Point(x, topMargin), color, 1);
+    }
+
+    const int timeTicks = 5;
+    const size_t hopSize = (m_hopSize > 0) ? m_hopSize : m_fftSize;
+    const double secondsPerRow = (m_sampleRate > 0) ? (static_cast<double>(hopSize) / m_sampleRate) : 0.0;
+    for (int t = 0; t <= timeTicks; ++t) {
+        const double frac = static_cast<double>(t) / timeTicks;
+        const int y = topMargin + static_cast<int>(std::round(frac * (rows - 1)));
+        const double sec = frac * rows * secondsPerRow;
+        const std::string label = std::to_string(sec).substr(0, 5);
+        cv::putText(canvas, label, cv::Point(5, y + 4), font, fontScale, color, thickness);
+        cv::line(canvas, cv::Point(leftMargin - 5, y), cv::Point(leftMargin, y), color, 1);
+    }
+
     const std::string outPath = m_savePath.empty() ? "spectrogram" + std::to_string(i) + ".png" : m_savePath + std::to_string(i) + ".png";
-    if (!cv::imwrite(outPath, image)) {
+    if (!cv::imwrite(outPath, canvas)) {
         ERROR << "SpectrogramPlot::run: failed to save image to " << outPath << std::endl;
         return false;
     }
@@ -125,6 +178,28 @@ void SpectrogramPlot::setParam(const std::string& paramName, const std::any& val
 
     if (paramName == "window size") {
         m_windowSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        return;
+    }
+
+    if (paramName == "hop size") {
+        m_hopSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        return;
+    }
+
+    if (paramName == "centered spectrum") {
+        m_centeredSpectrum = std::any_cast<bool>(value);
+        return;
+    }
+
+    if (paramName == "freq min") {
+        m_freqMin = std::any_cast<double>(value);
+        m_hasFreqRange = true;
+        return;
+    }
+
+    if (paramName == "freq max") {
+        m_freqMax = std::any_cast<double>(value);
+        m_hasFreqRange = true;
         return;
     }
 

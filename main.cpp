@@ -79,7 +79,7 @@ int32_t main(int argc, char const *argv[])
     std::shared_ptr<IModule> srcModule = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
     srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/amc_signal.bin"));
     srcModule->setParam("data type", std::string("complex"));
-    srcModule->setParam("max size", size_t(std::pow(2, 25)));
+    srcModule->setParam("max size", size_t(std::pow(2, 22)));
 
     std::shared_ptr<IModule> firModule = std::shared_ptr<IModule>(factory.createModule("FIR-filter"));
     firModule->setParam("filter order", 129);
@@ -89,7 +89,8 @@ int32_t main(int argc, char const *argv[])
 
     std::shared_ptr<IModule> fftMobule = std::shared_ptr<IModule>(factory.createModule("FFT"));
     fftMobule->setParam("fft size", fftSize);
-    fftMobule->setParam("overlap size", fftSize / 2);
+    fftMobule->setParam("overlap size", 0);
+    fftMobule->setParam("hop size", fftSize);
 
     std::shared_ptr<IModule> magnitureModyule = std::shared_ptr<IModule>(factory.createModule("CS2AS"));
 
@@ -97,6 +98,9 @@ int32_t main(int argc, char const *argv[])
     spectrogramm->setParam("sample rate", sampleFreq);
     spectrogramm->setParam("fft size", fftSize);
     spectrogramm->setParam("window size", fftSize);
+    spectrogramm->setParam("centered spectrum", true);
+    spectrogramm->setParam("freq min", -sampleFreq / 2.0);
+    spectrogramm->setParam("freq max", sampleFreq / 2.0);
     spectrogramm->setParam("save path", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogramm"));
 
 

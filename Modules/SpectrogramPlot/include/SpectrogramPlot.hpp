@@ -26,6 +26,12 @@ private:
     size_t m_fftSize = 1024;
     size_t m_windowSize = 0;
     size_t m_freqBins = 0;
+    size_t m_hopSize = 0;
+
+    bool m_centeredSpectrum = false;
+    double m_freqMin = 0.0;
+    double m_freqMax = 0.0;
+    bool m_hasFreqRange = false;
 
     bool m_isShow = true;
     std::string m_savePath;
