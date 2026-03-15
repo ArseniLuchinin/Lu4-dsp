@@ -27,18 +27,45 @@ FFT::~FFT() {
 }
 
 bool FFT::init() {
+    if (m_fftSize == 0) {
+        ERROR << "FFT::init: fft size must be greater than zero." << std::endl;
+        return false;
+    }
+
+    if (m_overlapSize < 0) {
+        ERROR << "FFT::init: overlap size must be non-negative." << std::endl;
+        return false;
+    }
+
+    if (static_cast<size_t>(m_overlapSize) >= m_fftSize) {
+        ERROR << "FFT::init: overlap size must be less than fft size." << std::endl;
+        return false;
+    }
+
+    m_hopSize = m_fftSize - static_cast<size_t>(m_overlapSize);
+    if (m_hopSize == 0) {
+        ERROR << "FFT::init: hop size must be greater than zero." << std::endl;
+        return false;
+    }
+
     return true;
 }
 
 bool FFT::initPlan(){
     const auto inputSize = std::visit([](const auto& ptr) { return ptr->size(); }, m_inDataPtr);
-    const auto batch = static_cast<int32_t>(inputSize / m_fftSize);
+    const auto batch = (inputSize < m_fftSize)
+        ? 0
+        : static_cast<int32_t>(1 + (inputSize - m_fftSize) / m_hopSize);
+    if (batch <= 0) {
+        ERROR << "FFT::initPlan: no FFT frames to process (input too small)." << std::endl;
+        return false;
+    }
 
     m_plan = 0;
     int n[1] = {static_cast<int>(m_fftSize)};
     const int istride = 1;
     const int ostride = 1;
-    const int idist = static_cast<int>(m_fftSize);
+    const int idist = static_cast<int>(m_hopSize);
     const int odist = static_cast<int>(m_outputPerBatch);
 
     const auto planStatus = cufftPlanMany(
@@ -90,6 +117,12 @@ bool FFT::saveInputTailToBuffer() {
     const auto overlap = static_cast<size_t>(m_overlapSize);
     if (overlap == 0) {
         return true;
+    }
+
+    const auto inputSize = std::visit([](const auto& ptr) { return ptr->size(); }, m_inDataPtr);
+    if (inputSize < overlap) {
+        ERROR << "FFT::saveInputTailToBuffer: input size is smaller than overlap size." << std::endl;
+        return false;
     }
 
     if (m_inputKind == InputKind::Real) {
@@ -155,6 +188,12 @@ bool FFT::run() {
     if (m_prefixPlan != 0) {
         cufftDestroy(m_prefixPlan);
         m_prefixPlan = 0;
+    }
+
+    const auto inputSize = std::visit([](const auto& ptr) { return ptr->size(); }, m_inDataPtr);
+    if (inputSize < m_fftSize) {
+        ERROR << "FFT::run: input size is smaller than fft size." << std::endl;
+        return false;
     }
 
     if (not initPlan()) {
@@ -260,7 +299,17 @@ bool FFT::setData(std::shared_ptr<IData> data) {
     }
 
     const auto inputSize = std::visit([](const auto& ptr) { return ptr->size(); }, m_inDataPtr);
-    const auto batch = inputSize / m_fftSize;
+    if (m_hopSize == 0) {
+        ERROR << "FFT::setData: init() was not called or hop size is invalid." << std::endl;
+        return false;
+    }
+
+    if (inputSize < m_fftSize) {
+        ERROR << "FFT::setData: input size is smaller than fft size." << std::endl;
+        return false;
+    }
+
+    const auto batch = 1 + (inputSize - m_fftSize) / m_hopSize;
     const auto hasStitchFrame = (!m_isFirstFft && m_overlapSize > 0) ? 1 : 0;
     const auto outputSize = m_outputPerBatch * (batch + hasStitchFrame);
     auto outData = std::make_shared<GpuComplexFloatSignal>(outputSize);

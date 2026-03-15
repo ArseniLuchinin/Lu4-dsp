@@ -79,7 +79,7 @@ int32_t main(int argc, char const *argv[])
     std::shared_ptr<IModule> srcModule = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
     srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/amc_signal.bin"));
     srcModule->setParam("data type", std::string("complex"));
-    srcModule->setParam("max size", size_t(std::pow(2, 22)));
+    srcModule->setParam("max size", size_t(std::pow(2, 26)));
 
     std::shared_ptr<IModule> firModule = std::shared_ptr<IModule>(factory.createModule("FIR-filter"));
     firModule->setParam("filter order", 129);

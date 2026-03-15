@@ -55,6 +55,7 @@ private:
 
     size_t m_fftSize = 1024;
     int32_t m_overlapSize = m_fftSize / 2;
+    size_t m_hopSize = 0;
 };
 
 #endif
