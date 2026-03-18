@@ -3,6 +3,7 @@
 
 #include <IModule.hpp>
 #include <fstream>
+#include <cstdint>
 
 enum DataType{
     Float,
@@ -37,10 +38,12 @@ protected:
     size_t m_maxSize;
     std::string m_fileName;
     size_t m_stepSize = 0;
-    std::ifstream m_file;
+    size_t m_fileSize = 0;
+    size_t m_offset = 0;
+    int m_fd = -1;
+    uint8_t* m_mmapPtr = nullptr;
 
     std::shared_ptr<IData> m_data;
-    char* m_hostBuffer;
 };
 
 #endif

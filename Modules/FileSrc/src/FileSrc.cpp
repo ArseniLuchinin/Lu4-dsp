@@ -3,11 +3,15 @@
 #include <iostream>
 #include <cstring>
 #include <filesystem>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <cuda_runtime.h>
 
 #include <GpuFloatSignal.hpp>
 #include <GpuComplexSignal.hpp>
+#include <EmptyContainer.hpp>
 #include <module.hpp>
 
 IModule* createModule() {
@@ -24,19 +28,27 @@ bool FileSrc::init() {
         return false;
     }
 
-    const auto fileSize = std::filesystem::file_size(m_fileName);
-    m_stepSize = (fileSize > m_maxSize) ? m_maxSize : fileSize;
+    m_fileSize = std::filesystem::file_size(m_fileName);
+    m_stepSize = (m_fileSize > m_maxSize) ? m_maxSize : m_fileSize;
 
-
-    m_file = std::ifstream(m_fileName, std::ios::in | std::ios::binary);
-    if (!m_file.is_open()) {
+    m_fd = ::open(m_fileName.c_str(), O_RDONLY);
+    if (m_fd < 0) {
         ERROR << "Failed to open file: " << m_fileName << std::endl;
         return false;
     }
 
-    INFO << "Successfully opened file: " << m_fileName << std::endl;
+    if (m_fileSize > 0) {
+        void* mapped = ::mmap(nullptr, m_fileSize, PROT_READ, MAP_PRIVATE, m_fd, 0);
+        if (mapped == MAP_FAILED) {
+            ERROR << "Failed to mmap file: " << m_fileName << std::endl;
+            ::close(m_fd);
+            m_fd = -1;
+            return false;
+        }
+        m_mmapPtr = reinterpret_cast<uint8_t*>(mapped);
+    }
 
-    m_hostBuffer = new char[m_stepSize];
+    INFO << "Successfully opened file: " << m_fileName << std::endl;
 
     return true;
 }
@@ -78,65 +90,57 @@ std::shared_ptr<IData> FileSrc::getData() {
 }
 
 bool FileSrc::readFile() {
-    m_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    if(m_file.is_open()) {
-        const size_t elementSize = (m_type == DataType::Float) ? sizeof(float) : sizeof(cuComplex);
-        const size_t elementCount = m_stepSize / elementSize;
-        if (elementCount == 0) {
-            return false;
-        }
+    if (m_fd < 0) {
+        return false;
+    }
 
-        std::shared_ptr<IData> tryData;
-        if (m_type == DataType::Float) {
-            tryData = std::shared_ptr<GpuFloatSignal>(new GpuFloatSignal(elementCount));
-        } else {
-            tryData = std::shared_ptr<GpuComplexFloatSignal>(new GpuComplexFloatSignal(elementCount));
-        }
-
-        try{
-            m_file.read(m_hostBuffer, m_stepSize);
-        }
-        catch(std::ios::failure e){
-            if(m_file.eof()){
-                if (m_type == DataType::Float) {
-                    m_data = std::make_shared<GpuFloatSignal>(0);
-                } else {
-                    m_data = std::make_shared<GpuComplexFloatSignal>(0);
-                }
-                return true;
-            }
-
-            ERROR << e.what() << std::endl;
-            return false;
-        }
-
-        if(m_file.fail() or not m_file.good()){
-            return false;
-        }
-
-        if(m_hostBuffer == nullptr)
-            return false;
-
-        const auto readedSize = m_file.gcount() / elementSize;
-        INFO << "Readed size: " << readedSize << " from file: " << m_fileName << std::endl;
-        if (m_type == DataType::Float) {
-            std::dynamic_pointer_cast<GpuFloatSignal>(tryData)->setDataFromHost(
-                reinterpret_cast<float*>(m_hostBuffer),
-                readedSize
-            );
-        } else {
-            std::dynamic_pointer_cast<GpuComplexFloatSignal>(tryData)->setDataFromHost(
-                reinterpret_cast<cuComplex*>(m_hostBuffer),
-                readedSize
-            );
-        }
-        m_data = tryData;
+    if (m_offset >= m_fileSize) {
+        m_data = std::make_shared<EmptyContainer>();
         return true;
     }
 
-    return false;
+    const size_t elementSize = (m_type == DataType::Float) ? sizeof(float) : sizeof(cuComplex);
+    const size_t remaining = m_fileSize - m_offset;
+    const size_t readBytes = (remaining > m_stepSize) ? m_stepSize : remaining;
+    const size_t elementCount = readBytes / elementSize;
+    if (elementCount == 0) {
+        return false;
+    }
+
+    std::shared_ptr<IData> tryData;
+    if (m_type == DataType::Float) {
+        tryData = std::shared_ptr<GpuFloatSignal>(new GpuFloatSignal(elementCount));
+    } else {
+        tryData = std::shared_ptr<GpuComplexFloatSignal>(new GpuComplexFloatSignal(elementCount));
+    }
+
+    uint8_t* srcPtr = m_mmapPtr + m_offset;
+    INFO << "Readed size: " << elementCount << " from file: " << m_fileName << std::endl;
+    if (m_type == DataType::Float) {
+        std::dynamic_pointer_cast<GpuFloatSignal>(tryData)->setDataFromHost(
+            reinterpret_cast<float*>(srcPtr),
+            elementCount
+        );
+    } else {
+        std::dynamic_pointer_cast<GpuComplexFloatSignal>(tryData)->setDataFromHost(
+            reinterpret_cast<cuComplex*>(srcPtr),
+            elementCount
+        );
+    }
+
+    m_offset += readBytes;
+    m_data = tryData;
+    return true;
 }
 
 
 FileSrc::~FileSrc(){
+    if (m_mmapPtr != nullptr && m_fileSize > 0) {
+        ::munmap(m_mmapPtr, m_fileSize);
+        m_mmapPtr = nullptr;
+    }
+    if (m_fd >= 0) {
+        ::close(m_fd);
+        m_fd = -1;
+    }
 }
