@@ -2,6 +2,7 @@
 #include <Conveyor.hpp>
 #include <iostream> // Для базового логирования
 #include <stdexcept> // Для исключений
+#include <chrono> // Для измерения времени
 
 #include <CpuFloatSignal.hpp>
 
@@ -61,10 +62,14 @@ bool Conveyor::init() {
 
 bool Conveyor::run() {
     auto module = m_modules.front();
+    auto moduleStart = std::chrono::steady_clock::now();
     if(not module->run()){
         ERROR << "Fail to run: " << module->getMetaData().moduleName << std::endl;
         return false;
     }
+    auto moduleEnd = std::chrono::steady_clock::now();
+    auto moduleMs = std::chrono::duration<double, std::milli>(moduleEnd - moduleStart).count();
+    INFO << "Module '" << module->getMetaData().moduleName << "' time: " << moduleMs << " ms" << std::endl;
 
     auto data = module->getData();
     if(data->size() == 0){
@@ -86,10 +91,14 @@ bool Conveyor::run() {
                 return false;
             }
             
+            moduleStart = std::chrono::steady_clock::now();
             if(not module->run()){
                 ERROR << "Fail to run: " << module->getMetaData().moduleName << std::endl;
                 return false;
             }
+            moduleEnd = std::chrono::steady_clock::now();
+            moduleMs = std::chrono::duration<double, std::milli>(moduleEnd - moduleStart).count();
+            INFO << "Module '" << module->getMetaData().moduleName << "' time: " << moduleMs << " ms" << std::endl;
 
             INFO << module->getMetaData().moduleName << " Success run" << std::endl;
             data = module->getData();

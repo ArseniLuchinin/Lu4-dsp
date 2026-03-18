@@ -4,6 +4,7 @@
 #include <CpuFloatSignal.hpp>
 #include <iostream>
 #include <thread>
+#include <chrono>
 
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
@@ -41,6 +42,7 @@ int32_t main(int argc, char const *argv[])
     if(not checkGPU()){
         return -1;
     }
+
 
     const int32_t fftSize = 4096;
     const int32_t sampleFreq = 2'097'152;
@@ -115,12 +117,17 @@ int32_t main(int argc, char const *argv[])
         return 1;
     }
 
+    auto allStart = std::chrono::steady_clock::now();
+    std::cout << "===== Run Main conveyor =====" << std::endl;
     while(conveyor.run()){}
 
     if(t1.joinable()){
         t1.join();
     }
 
+    auto allEnd = std::chrono::steady_clock::now();
+    auto allS = std::chrono::duration<double>(allEnd - allStart).count();
+    std::cout << "All modules total time: " << allS << " s" << std::endl;
    
     return 0;
 }
