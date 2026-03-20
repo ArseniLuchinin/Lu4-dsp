@@ -33,6 +33,11 @@ std::shared_ptr<IData> VirtualTransmitter::rxData(const std::string& name) {
 
     const auto data = it->second;
     it->second = nullptr;
+    // Уведомляем TX, что слот освободился.
+    auto evtIt = s_tagEvents.find(name);
+    if (evtIt != s_tagEvents.end()) {
+        evtIt->second.notify_one();
+    }
     return data;
 }
 
@@ -40,6 +45,7 @@ std::shared_ptr<IData> VirtualTransmitter::waitRxData(const std::string& name) {
     std::unique_lock<std::mutex> lock(s_mutex);
     auto& cv = getTagCvUnlocked(name);
 
+    // Ждем, пока по тегу не появится сообщение.
     cv.wait(lock, [&]() {
         const auto it = s_transmitter.find(name);
         return it != s_transmitter.end() && it->second != nullptr;
@@ -48,16 +54,21 @@ std::shared_ptr<IData> VirtualTransmitter::waitRxData(const std::string& name) {
     auto it = s_transmitter.find(name);
     const auto data = it->second;
     it->second = nullptr;
+    // Будим TX, если он ждет освобождения слота.
+    cv.notify_one();
     return data;
 }
 
 void VirtualTransmitter::txData(const std::shared_ptr<IData>& data, const std::string& name) {
-    std::lock_guard<std::mutex> lock(s_mutex);
+    std::unique_lock<std::mutex> lock(s_mutex);
+    auto& cv = getTagCvUnlocked(name);
+    // Однослотовый брокер: ждем, пока прошлое сообщение не будет потреблено.
+    cv.wait(lock, [&]() {
+        const auto it = s_transmitter.find(name);
+        return it == s_transmitter.end() || it->second == nullptr;
+    });
+
     s_transmitter[name] = data;
     std::cout << "Data " << data->getDataName() << " was transmitted to " << name << std::endl;
-
-    auto it = s_tagEvents.find(name);
-    if (it != s_tagEvents.end()) {
-        it->second.notify_one();
-    }
+    cv.notify_one();
 }

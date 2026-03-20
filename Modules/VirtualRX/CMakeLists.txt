@@ -1,18 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
-project(-module)
+project(VirtualRX-module)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(CUDAToolkit REQUIRED)
-
 add_library(${PROJECT_NAME} SHARED
-    src/
-)
-
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON
-    CUDA_ARCHITECTURES 75  
+    src/VirtualRX.cpp
 )
 
 target_include_directories(${PROJECT_NAME} 
@@ -25,7 +18,6 @@ target_include_directories(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
-        CUDA::cudart
         DataContainers
         Module
         logger

@@ -32,6 +32,7 @@ target_link_libraries(computing_server
     PRIVATE
         Core
         DataContainers
+        Module
         logger
 )
 
