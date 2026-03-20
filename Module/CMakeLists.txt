@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(${PROJECT_NAME} SHARED
     include/IModule.hpp
     include/VirtualTransmitter.hpp
-    src/VirtualRX.cpp
+    src/IVirtualRX.cpp
     src/VirtualTransmitter.cpp
 )
 

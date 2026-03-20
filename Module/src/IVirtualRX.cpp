@@ -1,16 +1,16 @@
-#include <VirtualRX.hpp>
+#include <IVirtualRX.hpp>
 #include <VirtualTransmitter.hpp>
 
-VirtualRX::VirtualRX(){}
+IVirtualRX::IVirtualRX(){}
 
-VirtualRX::~VirtualRX() = default;
+IVirtualRX::~IVirtualRX() = default;
 
-bool VirtualRX::setTag(const std::string& tag) {
+bool IVirtualRX::setTag(const std::string& tag) {
     m_tag = tag;
     return !m_tag.empty();
 }
 
-std::shared_ptr<IData> VirtualRX::rxData() {
+std::shared_ptr<IData> IVirtualRX::rxData() {
     if (m_tag.empty()) {
         return nullptr;
     }

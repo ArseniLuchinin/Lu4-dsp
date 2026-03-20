@@ -3,11 +3,11 @@
 
 #include <IModule.hpp>
 #include <IData.hpp>
-#include <VirtualRX.hpp>
+#include <IVirtualRX.hpp>
 
 #include <GpuFloatSignal.hpp>
 
-class FIRFilter : public IModule, public VirtualRX { 
+class FIRFilter : public IModule, public IVirtualRX { 
 public:
     FIRFilter();
 

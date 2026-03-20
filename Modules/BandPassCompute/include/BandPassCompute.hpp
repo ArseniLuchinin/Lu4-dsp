@@ -2,10 +2,10 @@
 #define BAND_PASS_COMPUTE_HPP
 
 #include <IModule.hpp>
-#include <VirtualRX.hpp>
+#include <IVirtualRX.hpp>
 #include <CpuFloatSignal.hpp>
 
-class BandPassCompute : public IModule, public VirtualRX {
+class BandPassCompute : public IModule, public IVirtualRX {
     public:
     BandPassCompute();
     ~BandPassCompute();
