@@ -63,7 +63,7 @@ int32_t main(int argc, char const *argv[])
     std::shared_ptr<IModule> spectrogramm = std::shared_ptr<IModule>(factory.createModule("SpectrogramPlot"));
     spectrogramm->setParam("sample rate", sampleFreq);
     spectrogramm->setParam("fft size", std::string("$FFTSize"));
-    spectrogramm->setParam("window size", std::string("$FFTWindow"));
+    spectrogramm->setParam("window size", std::string("$FFTSize"));
     spectrogramm->setParam("centered spectrum", true);
     spectrogramm->setParam("freq min", -sampleFreq / 2.0);
     spectrogramm->setParam("freq max", sampleFreq / 2.0);
@@ -86,12 +86,10 @@ int32_t main(int argc, char const *argv[])
     std::shared_ptr<IModule> srcModule = std::shared_ptr<IModule>(factory.createModule("FileSrc"));
     srcModule->setParam("file name", std::string("/home/luchinin/my_source/Course_poject/Server/signal_examples/amc_signal.bin"));
     srcModule->setParam("data type", std::string("complex"));
-    srcModule->setParam("max size", size_t(std::pow(2, 28)));
+    srcModule->setParam("max size", std::string("$MaxSize"));
 
     std::shared_ptr<IModule> fftMobule = std::shared_ptr<IModule>(factory.createModule("FFT"));
     fftMobule->setParam("fft size", std::string("$FFTSize"));
-    fftMobule->setParam("overlap size", 0);
-    fftMobule->setParam("hop size", std::string("$FFTWindow"));
 
     std::shared_ptr<IModule> virtTxModule = std::shared_ptr<IModule>(factory.createModule("VirtualTX"));
     virtTxModule->setParam("tag", rxTag);

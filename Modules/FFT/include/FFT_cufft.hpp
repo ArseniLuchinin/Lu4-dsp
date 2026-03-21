@@ -33,10 +33,6 @@ public:
 private:
     bool initPlan();
 
-    bool initPrefixPlan();
-    bool saveInputTailToBuffer();
-    bool executeStitchFft();
-
     SignalPtr m_inDataPtr;
     InputKind m_inputKind = InputKind::Real;
 
@@ -46,15 +42,7 @@ private:
 
     cufftHandle m_plan = 0;
 
-    cufftHandle m_prefixPlan = 0;
-    GpuFloatSignal m_prefixInputReal;
-    GpuFloatSignal m_bufferReal;
-    GpuComplexFloatSignal m_prefixInputComplex;
-    GpuComplexFloatSignal m_bufferComplex;
-    bool m_isFirstFft = true;
-
     size_t m_fftSize = 1024;
-    int32_t m_overlapSize = m_fftSize / 2;
     size_t m_hopSize = 0;
 };
 
