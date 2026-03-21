@@ -1,3 +1,3 @@
-FFTSize = 16384
-FFTWindow = 16384
+FftSize = 16384
+FftWindow = 16384
 MaxSize = 1073741824
