@@ -1,4 +1,5 @@
 #include <SpectrogramPlot.hpp>
+#include <VariablesResolve.hpp>
 
 #include <GpuFloatSignal.hpp>
 #include <module.hpp>
@@ -166,50 +167,51 @@ bool SpectrogramPlot::run() {
 }
 
 void SpectrogramPlot::setParam(const std::string& paramName, const std::any& value) {
+    const std::any resolved = resolveParamValue(value);
     if (paramName == "sample rate") {
-        m_sampleRate = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_sampleRate = static_cast<size_t>(std::any_cast<int32_t>(resolved));
         return;
     }
 
     if (paramName == "fft size") {
-        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(resolved));
         return;
     }
 
     if (paramName == "window size") {
-        m_windowSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_windowSize = static_cast<size_t>(std::any_cast<int32_t>(resolved));
         return;
     }
 
     if (paramName == "hop size") {
-        m_hopSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_hopSize = static_cast<size_t>(std::any_cast<int32_t>(resolved));
         return;
     }
 
     if (paramName == "centered spectrum") {
-        m_centeredSpectrum = std::any_cast<bool>(value);
+        m_centeredSpectrum = std::any_cast<bool>(resolved);
         return;
     }
 
     if (paramName == "freq min") {
-        m_freqMin = std::any_cast<double>(value);
+        m_freqMin = std::any_cast<double>(resolved);
         m_hasFreqRange = true;
         return;
     }
 
     if (paramName == "freq max") {
-        m_freqMax = std::any_cast<double>(value);
+        m_freqMax = std::any_cast<double>(resolved);
         m_hasFreqRange = true;
         return;
     }
 
     if (paramName == "show") {
-        m_isShow = std::any_cast<bool>(value);
+        m_isShow = std::any_cast<bool>(resolved);
         return;
     }
 
     if (paramName == "save path") {
-        m_savePath = std::any_cast<std::string>(value);
+        m_savePath = std::any_cast<std::string>(resolved);
         return;
     }
 }

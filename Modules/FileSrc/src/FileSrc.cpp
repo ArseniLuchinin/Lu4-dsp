@@ -1,4 +1,5 @@
 #include "FileSrc.hpp"
+#include <VariablesResolve.hpp>
 #include <fstream>
 #include <iostream>
 #include <cstring>
@@ -61,18 +62,19 @@ bool FileSrc::run() {
 }
 
 void FileSrc::setParam(const std::string& paramName, const std::any& value) {
+    const std::any resolved = resolveParamValue(value);
     if(paramName == "file name") {
-        m_fileName = std::any_cast<std::string>(value);
+        m_fileName = std::any_cast<std::string>(resolved);
         return;
     }
 
     if(paramName == "max size") {
-        m_maxSize = std::any_cast<size_t>(value);
+        m_maxSize = std::any_cast<size_t>(resolved);
         return;
     }
 
     if(paramName == "data type") {
-        auto valueStr = std::any_cast<std::string>(value);
+        auto valueStr = std::any_cast<std::string>(resolved);
         if(valueStr == "float")
             m_type = DataType::Float;
         if(valueStr == "complex")

@@ -10,6 +10,8 @@
 
 #include <toml++/toml.h>
 
+#include <VariablesResolve.hpp>
+
 class Variables {
 public:
     static Variables& instance();
@@ -37,9 +39,5 @@ private:
     > enums_;
     std::unordered_map<std::string, std::any> data_;
 };
-
-// If token starts with '$', tries to resolve it from Variables storage.
-// Returns empty std::any when token is not a variable name or not found.
-std::any resolveVariableToken(const std::string& token);
 
 #endif // VARIABLES_H

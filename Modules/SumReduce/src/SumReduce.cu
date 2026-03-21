@@ -1,4 +1,5 @@
 #include "SumReduce.hpp"
+#include <VariablesResolve.hpp>
 #include <fstream>
 #include <iostream>
 #include <cstring>
@@ -62,6 +63,9 @@ bool SumReduce::run() {
     return true;
 }
 void SumReduce::setParam(const std::string& paramName, const std::any& value) {
+    const std::any resolved = resolveParamValue(value);
+    (void)paramName;
+    (void)resolved;
 }
 
 bool SumReduce::setData(std::shared_ptr<IData> data) {

@@ -1,4 +1,5 @@
 #include <VirtualTX.hpp>
+#include <VariablesResolve.hpp>
 
 #include <VirtualTransmitter.hpp>
 #include <module.hpp>
@@ -43,8 +44,9 @@ bool VirtualTX::run() {
 }
 
 void VirtualTX::setParam(const std::string& paramName, const std::any& value) {
+    const std::any resolved = resolveParamValue(value);
     if (paramName == "tag") {
-        m_tag = std::any_cast<std::string>(value);
+        m_tag = std::any_cast<std::string>(resolved);
         INFO << "VirtualTX tag set to: " << m_tag << std::endl;
         return;
     }

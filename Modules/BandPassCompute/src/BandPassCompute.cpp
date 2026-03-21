@@ -1,4 +1,5 @@
 #include <BandPassCompute.hpp>
+#include <VariablesResolve.hpp>
 
 #include <module.hpp>
 #include <CpuFloatSignal.hpp>
@@ -65,32 +66,33 @@ bool BandPassCompute::run() {
 }
 
 void BandPassCompute::setParam(const std::string& paramName, const std::any& value) {
+    const std::any resolved = resolveParamValue(value);
     if (paramName == "sample rate") {
-        m_sampleRate = static_cast<float>(std::any_cast<int32_t>(value));
+        m_sampleRate = static_cast<float>(std::any_cast<int32_t>(resolved));
         INFO << "BandPassCompute sample rate set to: " << m_sampleRate << std::endl;
         return;
     }
 
     if (paramName == "filter order") {
-        m_filterOrder = std::any_cast<int32_t>(value);
+        m_filterOrder = std::any_cast<int32_t>(resolved);
         INFO << "BandPassCompute filter order set to: " << m_filterOrder << std::endl;
         return;
     }
 
     if (paramName == "block size") {
-        m_blockSize = std::any_cast<int32_t>(value);
+        m_blockSize = std::any_cast<int32_t>(resolved);
         INFO << "BandPassCompute block size set to: " << m_blockSize << std::endl;
         return;
     }
 
     if (paramName == "low cutoff") {
-        m_lowCutoff = std::any_cast<float>(value);
+        m_lowCutoff = std::any_cast<float>(resolved);
         INFO << "BandPassCompute low cutoff set to: " << m_lowCutoff << std::endl;
         return;
     }
 
     if (paramName == "high cutoff") {
-        m_highCutoff = std::any_cast<float>(value);
+        m_highCutoff = std::any_cast<float>(resolved);
         INFO << "BandPassCompute high cutoff set to: " << m_highCutoff << std::endl;
         return;
     }

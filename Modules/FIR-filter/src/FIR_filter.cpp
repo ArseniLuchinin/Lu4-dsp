@@ -1,4 +1,5 @@
 #include <FIR_filter.hpp>
+#include <VariablesResolve.hpp>
 #include <CpuFloatSignal.hpp>
 
 #include <cmath>
@@ -76,13 +77,14 @@ bool FIRFilter::setData(std::shared_ptr<IData> data){
 }
 
 void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
+    const std::any resolved = resolveParamValue(value);
     if(paramName == "coefficients data tag"){
-        setTag(std::any_cast<std::string>(value));
+        setTag(std::any_cast<std::string>(resolved));
         return;
     }
 
     if (paramName == "filter order") {
-        m_M = std::any_cast<int32_t>(value);
+        m_M = std::any_cast<int32_t>(resolved);
         return;
     }
 

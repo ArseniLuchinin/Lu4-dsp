@@ -1,1 +1,2 @@
-FFTSize = 4096
+FFTSize = 8192
+FFTWindow = 4096

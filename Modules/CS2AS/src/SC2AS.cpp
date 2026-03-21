@@ -1,4 +1,5 @@
 #include <CS2AS.hpp>
+#include <VariablesResolve.hpp>
 
 #include <cuda_runtime.h>
 #include <cuComplex.h>
@@ -91,8 +92,9 @@ bool CS2AS::run() {
 }
 
 void CS2AS::setParam(const std::string& paramName, const std::any& value) {
+    const std::any resolved = resolveParamValue(value);
     (void)paramName;
-    (void)value;
+    (void)resolved;
 }
 
 bool CS2AS::setData(std::shared_ptr<IData> data) {

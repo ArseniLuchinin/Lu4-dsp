@@ -1,4 +1,5 @@
 #include "FFT_cufft.hpp"
+#include <VariablesResolve.hpp>
 #include "fftUtils.hpp"
 
 #include <module.hpp>
@@ -270,12 +271,13 @@ bool FFT::run() {
 }
 
 void FFT::setParam(const std::string& paramName, const std::any& value) {
+    const std::any resolved = resolveParamValue(value);
     if(paramName == "fft size"){
-        m_fftSize = std::any_cast<int32_t>(value);
+        m_fftSize = std::any_cast<int32_t>(resolved);
     }
 
     if(paramName == "overlap size"){
-        m_overlapSize = std::any_cast<int32_t>(value);
+        m_overlapSize = std::any_cast<int32_t>(resolved);
     }
 }
 
