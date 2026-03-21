@@ -2,6 +2,7 @@
 #include <VariablesResolve.hpp>
 
 #include <VirtualTransmitter.hpp>
+#include <EmptyContainer.hpp>
 #include <module.hpp>
 
 IModule* createModule() {
@@ -12,7 +13,12 @@ VirtualTX::VirtualTX()
     : IModule({"VirtualTX", "VirtualTX.so", "VirtualTX.json"})
 {}
 
-VirtualTX::~VirtualTX() = default;
+VirtualTX::~VirtualTX() {
+    if (!m_tag.empty()) {
+        VirtualTransmitter transmitter;
+        transmitter.txData(std::make_shared<EmptyContainer>(), m_tag);
+    }
+}
 
 bool VirtualTX::init() {
     if (m_tag.empty()) {

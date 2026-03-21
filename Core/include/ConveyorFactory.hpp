@@ -7,17 +7,15 @@
 
 #include <boost/json.hpp>
 
+#include <any>
 #include <memory>
 #include <string>
-#include <vector>
 
 class ConveyorFactory {
 public:
     struct BuildResult {
         std::shared_ptr<Conveyor> conveyor;
         std::string name;
-        bool hasVirtualRx = false;
-        std::vector<std::string> rxTags;
     };
 
     explicit ConveyorFactory(ModuleFactory& moduleFactory);

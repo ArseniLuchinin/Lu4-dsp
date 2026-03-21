@@ -1,8 +1,6 @@
 #include <ConveyorOrchestrator.hpp>
 
-#include <EmptyContainer.hpp>
 #include <Variables.hpp>
-#include <VirtualTransmitter.hpp>
 
 #include <boost/system/error_code.hpp>
 
@@ -62,38 +60,27 @@ bool ConveyorOrchestrator::run() {
     for (auto& runtime : m_runtimes) {
         runtime.thread = std::thread([this, &runtime]() {
             const auto start = std::chrono::steady_clock::now();
+            const auto resetConveyor = [&runtime]() {
+                runtime.build.conveyor.reset();
+            };
+
             if (!runtime.build.conveyor->init()) {
                 ERROR << "Error init conveyor: " << runtime.build.name << std::endl;
+                resetConveyor();
                 return;
             }
             while (runtime.build.conveyor->run()) {
             }
+
+            resetConveyor();
             const auto end = std::chrono::steady_clock::now();
             runtime.elapsedSeconds =
                 std::chrono::duration<double>(end - start).count();
         });
     }
 
-    // First, wait for non-RX conveyors (TX path).
     for (auto& runtime : m_runtimes) {
-        if (!runtime.build.hasVirtualRx && runtime.thread.joinable()) {
-            runtime.thread.join();
-        }
-    }
-
-    // Unblock RX conveyors by sending end-of-stream per tag.
-    for (const auto& runtime : m_runtimes) {
-        if (!runtime.build.hasVirtualRx) {
-            continue;
-        }
-        for (const auto& tag : runtime.build.rxTags) {
-            VirtualTransmitter transmitter;
-            transmitter.txData(std::make_shared<EmptyContainer>(), tag);
-        }
-    }
-
-    for (auto& runtime : m_runtimes) {
-        if (runtime.build.hasVirtualRx && runtime.thread.joinable()) {
+        if (runtime.thread.joinable()) {
             runtime.thread.join();
         }
     }

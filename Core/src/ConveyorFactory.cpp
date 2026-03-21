@@ -98,18 +98,6 @@ bool ConveyorFactory::buildModule(
         }
     }
 
-    if (moduleName == "VirtualRX") {
-        result.hasVirtualRx = true;
-        auto paramsIt = moduleObj.find("params");
-        if (paramsIt != moduleObj.end() && paramsIt->value().is_object()) {
-            const auto& params = paramsIt->value().as_object();
-            auto tagIt = params.find("tag");
-            if (tagIt != params.end() && tagIt->value().is_string()) {
-                result.rxTags.push_back(tagIt->value().as_string().c_str());
-            }
-        }
-    }
-
     result.conveyor->addModule(module);
     return true;
 }
