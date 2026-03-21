@@ -14,6 +14,7 @@
 #include <boost/log/utility/setup/console.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/log/support/date_time.hpp> 
+#include <Variables.hpp>
 
 
 namespace logging = boost::log;
@@ -42,6 +43,7 @@ void init_logging()
 
 int32_t main(int argc, char const *argv[])
 {
+    Config::instance().load("variables.toml");
     if(not checkGPU()){
         return -1;
     }
@@ -122,6 +124,6 @@ int32_t main(int argc, char const *argv[])
     auto allEnd = std::chrono::steady_clock::now();
     auto allS = std::chrono::duration<double>(allEnd - allStart).count();
     std::cout << "All modules total time: " << allS << " s" << std::endl;
-   
+
     return 0;
 }

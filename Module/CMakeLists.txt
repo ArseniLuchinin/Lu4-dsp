@@ -8,14 +8,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(${PROJECT_NAME} SHARED
     include/IModule.hpp
+    include/Variables.hpp
     include/VirtualTransmitter.hpp
     src/IVirtualRX.cpp
     src/VirtualTransmitter.cpp
+    src/Vаriables.cpp
 )
 
 target_include_directories(${PROJECT_NAME}
-    PRIVATE
+    PUBLIC
         include
+    PRIVATE
         ${DATA_CONTAINERS_INCLUDE_DIRS}
 )
 
@@ -25,6 +28,10 @@ target_link_libraries(logger INTERFACE
     Boost::log_setup
     Boost::thread
     Boost::system
+)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    tomlplusplus::tomlplusplus
 )
 
 set_target_properties(Module PROPERTIES LINKER_LANGUAGE CXX)

@@ -10,6 +10,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(HIREDIS REQUIRED hiredis)
 pkg_check_modules(REDISPP REQUIRED redis++)
 find_package(Boost REQUIRED COMPONENTS log log_setup thread system)
+find_package(tomlplusplus CONFIG REQUIRED)
 
 
 set(MODULE_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/Module/include")
@@ -51,3 +52,10 @@ function(add_all_subdirs DIR_PATH)
 endfunction()
 
 add_all_subdirs("Modules")
+
+# Copy runtime config
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/variables.toml
+    ${CMAKE_CURRENT_BINARY_DIR}/variables.toml
+    COPYONLY
+)
