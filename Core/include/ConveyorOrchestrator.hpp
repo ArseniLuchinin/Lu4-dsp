@@ -20,7 +20,7 @@ public:
 
 private:
     struct Runtime {
-        ConveyorFactory::BuildResult build;
+        std::shared_ptr<Conveyor> conveyor;
         std::thread thread;
         double elapsedSeconds = 0.0;
     };

@@ -3,6 +3,7 @@
 #include <boost/system/error_code.hpp>
 
 #include <limits>
+#include <memory>
 #include <stdexcept>
 
 using boost::json::object;
@@ -13,7 +14,7 @@ ConveyorFactory::ConveyorFactory(ModuleFactory& moduleFactory)
     , logger(boost::log::keywords::channel = "ConveyorFactory")
 {}
 
-ConveyorFactory::BuildResult ConveyorFactory::createFromJsonString(
+std::shared_ptr<Conveyor> ConveyorFactory::createFromJsonString(
     const std::string& jsonStr
 ) {
     boost::system::error_code ec;
@@ -32,7 +33,7 @@ ConveyorFactory::BuildResult ConveyorFactory::createFromJsonString(
     return createFromJsonObject(*obj);
 }
 
-ConveyorFactory::BuildResult ConveyorFactory::createFromJsonObject(
+std::shared_ptr<Conveyor> ConveyorFactory::createFromJsonObject(
     const object& conveyorObj
 ) {
     auto nameIt = conveyorObj.find("name");
@@ -41,9 +42,7 @@ ConveyorFactory::BuildResult ConveyorFactory::createFromJsonObject(
     }
 
     const std::string name = nameIt->value().as_string().c_str();
-    BuildResult result;
-    result.name = name;
-    result.conveyor = std::make_shared<Conveyor>(name);
+    auto conveyor = std::make_shared<Conveyor>(name);
 
     auto modulesIt = conveyorObj.find("modules");
     if (modulesIt == conveyorObj.end() || !modulesIt->value().is_array()) {
@@ -57,18 +56,18 @@ ConveyorFactory::BuildResult ConveyorFactory::createFromJsonObject(
             throw std::runtime_error("Module entry is not an object");
         }
 
-        if (!buildModule(result, *modObj)) {
+        if (!buildModule(*conveyor, *modObj)) {
             throw std::runtime_error(
                 "Failed to build module for conveyor: " + name
             );
         }
     }
 
-    return result;
+    return conveyor;
 }
 
 bool ConveyorFactory::buildModule(
-    BuildResult& result,
+    Conveyor& conveyor,
     const object& moduleObj
 ) {
     auto nameIt = moduleObj.find("name");
@@ -98,7 +97,7 @@ bool ConveyorFactory::buildModule(
         }
     }
 
-    result.conveyor->addModule(module);
+    conveyor.addModule(module);
     return true;
 }
 

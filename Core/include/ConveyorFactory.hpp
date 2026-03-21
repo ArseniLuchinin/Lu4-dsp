@@ -13,19 +13,18 @@
 
 class ConveyorFactory {
 public:
-    struct BuildResult {
-        std::shared_ptr<Conveyor> conveyor;
-        std::string name;
-    };
-
     explicit ConveyorFactory(ModuleFactory& moduleFactory);
 
-    BuildResult createFromJsonObject(const boost::json::object& conveyorObj);
-    BuildResult createFromJsonString(const std::string& jsonStr);
+    std::shared_ptr<Conveyor> createFromJsonObject(
+        const boost::json::object& conveyorObj
+    );
+    std::shared_ptr<Conveyor> createFromJsonString(
+        const std::string& jsonStr
+    );
 
 private:
     bool buildModule(
-        BuildResult& result,
+        Conveyor& conveyor,
         const boost::json::object& moduleObj
     );
 

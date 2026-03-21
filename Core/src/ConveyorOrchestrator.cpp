@@ -60,16 +60,20 @@ bool ConveyorOrchestrator::run() {
     for (auto& runtime : m_runtimes) {
         runtime.thread = std::thread([this, &runtime]() {
             const auto start = std::chrono::steady_clock::now();
+            std::string conveyorName;
+            if (runtime.conveyor) {
+                conveyorName = runtime.conveyor->getName();
+            }
             const auto resetConveyor = [&runtime]() {
-                runtime.build.conveyor.reset();
+                runtime.conveyor.reset();
             };
 
-            if (!runtime.build.conveyor->init()) {
-                ERROR << "Error init conveyor: " << runtime.build.name << std::endl;
+            if (!runtime.conveyor->init()) {
+                ERROR << "Error init conveyor: " << conveyorName << std::endl;
                 resetConveyor();
                 return;
             }
-            while (runtime.build.conveyor->run()) {
+            while (runtime.conveyor->run()) {
             }
 
             resetConveyor();
@@ -86,7 +90,10 @@ bool ConveyorOrchestrator::run() {
     }
 
     for (const auto& runtime : m_runtimes) {
-        INFO << "Conveyor '" << runtime.build.name << "' total time: "
+        const std::string name = runtime.conveyor
+            ? runtime.conveyor->getName()
+            : std::string("<destroyed>");
+        INFO << "Conveyor '" << name << "' total time: "
              << runtime.elapsedSeconds << " s" << std::endl;
     }
 
@@ -136,7 +143,7 @@ bool ConveyorOrchestrator::buildConveyors() {
 
         try {
             Runtime runtime;
-            runtime.build = m_conveyorFactory.createFromJsonObject(*obj);
+            runtime.conveyor = m_conveyorFactory.createFromJsonObject(*obj);
             m_runtimes.push_back(std::move(runtime));
         } catch (const std::exception& ex) {
             ERROR << "Failed to build conveyor: " << ex.what() << std::endl;
