@@ -1,0 +1,56 @@
+{
+  "variables": "variables.toml",
+  "conveyors": [
+    {
+      "name": "RX conveyor",
+      "modules": [
+        {
+          "name": "VirtualRX",
+          "params": {
+            "tag": "fft_out"
+          }
+        },
+        {
+          "name": "CS2AS"
+        },
+        {
+          "name": "SpectrogramPlot",
+          "params": {
+            "sample rate": "$SAMPLE_RATE",
+            "fft size": "$FFT_SIZE",
+            "window size": "$FFT_WINDOW",
+            "centered spectrum": true,
+            "freq min": -1048576.0,
+            "freq max": 1048576.0,
+            "save path": "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogramm"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Main conveyor",
+      "modules": [
+        {
+          "name": "FileSrc",
+          "params": {
+            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/amc_signal.bin",
+            "data type": "complex",
+            "max size": "$MAX_SIZE"
+          }
+        },
+        {
+          "name": "FFT",
+          "params": {
+            "fft size": "$FFT_SIZE"
+          }
+        },
+        {
+          "name": "VirtualTX",
+          "params": {
+            "tag": "fft_out"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -10,9 +10,11 @@ add_library(${PROJECT_NAME}
     src/ModuleFactory.cpp
     src/Conveyor.cpp
     src/CheckGpu.cpp
+    src/JsonReader.cpp
 
     include/ModuleFactory.hpp
     include/Conveyor.hpp
+    include/JsonReader.hpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -26,5 +28,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ${HIREDIS_LIBRARIES}
     ${REDISPP_LIBRARIES}
+    Boost::json
     logger
 )
