@@ -10,11 +10,13 @@ add_library(${PROJECT_NAME}
     src/ModuleFactory.cpp
     src/Conveyor.cpp
     src/CheckGpu.cpp
-    src/JsonReader.cpp
+    src/ConveyorFactory.cpp
+    src/ConveyorOrchestrator.cpp
 
     include/ModuleFactory.hpp
     include/Conveyor.hpp
-    include/JsonReader.hpp
+    include/ConveyorFactory.hpp
+    include/ConveyorOrchestrator.hpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

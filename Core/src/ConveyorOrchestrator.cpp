@@ -1,0 +1,161 @@
+#include <ConveyorOrchestrator.hpp>
+
+#include <EmptyContainer.hpp>
+#include <Variables.hpp>
+#include <VirtualTransmitter.hpp>
+
+#include <boost/system/error_code.hpp>
+
+#include <chrono>
+#include <fstream>
+#include <sstream>
+
+ConveyorOrchestrator::ConveyorOrchestrator(const std::string& configPath)
+    : m_configPath(configPath)
+    , m_moduleFactory(".")
+    , m_conveyorFactory(m_moduleFactory)
+    , logger(boost::log::keywords::channel = "ConveyorOrchestrator")
+{}
+
+bool ConveyorOrchestrator::load() {
+    std::ifstream file(m_configPath);
+    if (!file) {
+        ERROR << "Failed to open config: " << m_configPath << std::endl;
+        return false;
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+
+    boost::system::error_code ec;
+    m_root = boost::json::parse(buffer.str(), ec);
+    if (ec) {
+        ERROR << "JSON parse error: " << ec.message() << std::endl;
+        return false;
+    }
+
+    m_loaded = true;
+    return true;
+}
+
+bool ConveyorOrchestrator::run() {
+    if (!m_loaded) {
+        ERROR << "ConveyorOrchestrator::run: config not loaded." << std::endl;
+        return false;
+    }
+
+    const auto* rootObj = m_root.if_object();
+    if (!rootObj) {
+        ERROR << "ConveyorOrchestrator::run: root is not an object." << std::endl;
+        return false;
+    }
+
+    if (!loadVariables(*rootObj)) {
+        return false;
+    }
+
+    if (!buildConveyors()) {
+        return false;
+    }
+
+    // Start each conveyor in its own thread.
+    for (auto& runtime : m_runtimes) {
+        runtime.thread = std::thread([this, &runtime]() {
+            const auto start = std::chrono::steady_clock::now();
+            if (!runtime.build.conveyor->init()) {
+                ERROR << "Error init conveyor: " << runtime.build.name << std::endl;
+                return;
+            }
+            while (runtime.build.conveyor->run()) {
+            }
+            const auto end = std::chrono::steady_clock::now();
+            runtime.elapsedSeconds =
+                std::chrono::duration<double>(end - start).count();
+        });
+    }
+
+    // First, wait for non-RX conveyors (TX path).
+    for (auto& runtime : m_runtimes) {
+        if (!runtime.build.hasVirtualRx && runtime.thread.joinable()) {
+            runtime.thread.join();
+        }
+    }
+
+    // Unblock RX conveyors by sending end-of-stream per tag.
+    for (const auto& runtime : m_runtimes) {
+        if (!runtime.build.hasVirtualRx) {
+            continue;
+        }
+        for (const auto& tag : runtime.build.rxTags) {
+            VirtualTransmitter transmitter;
+            transmitter.txData(std::make_shared<EmptyContainer>(), tag);
+        }
+    }
+
+    for (auto& runtime : m_runtimes) {
+        if (runtime.build.hasVirtualRx && runtime.thread.joinable()) {
+            runtime.thread.join();
+        }
+    }
+
+    for (const auto& runtime : m_runtimes) {
+        INFO << "Conveyor '" << runtime.build.name << "' total time: "
+             << runtime.elapsedSeconds << " s" << std::endl;
+    }
+
+    return true;
+}
+
+bool ConveyorOrchestrator::loadVariables(const boost::json::object& root) {
+    auto it = root.find("variables");
+    if (it == root.end()) {
+        return true;
+    }
+
+    if (!it->value().is_string()) {
+        ERROR << "'variables' must be a string path." << std::endl;
+        return false;
+    }
+
+    const std::string varsPath = it->value().as_string().c_str();
+    if (!Variables::instance().load(varsPath)) {
+        ERROR << "Failed to load variables: " << varsPath << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+bool ConveyorOrchestrator::buildConveyors() {
+    const auto* rootObj = m_root.if_object();
+    if (!rootObj) {
+        ERROR << "ConveyorOrchestrator::buildConveyors: root is not object." << std::endl;
+        return false;
+    }
+
+    auto it = rootObj->find("conveyors");
+    if (it == rootObj->end() || !it->value().is_array()) {
+        ERROR << "'conveyors' must be an array." << std::endl;
+        return false;
+    }
+
+    const auto& conveyors = it->value().as_array();
+    for (const auto& item : conveyors) {
+        const auto* obj = item.if_object();
+        if (!obj) {
+            ERROR << "Conveyor entry is not an object." << std::endl;
+            return false;
+        }
+
+        try {
+            Runtime runtime;
+            runtime.build = m_conveyorFactory.createFromJsonObject(*obj);
+            m_runtimes.push_back(std::move(runtime));
+        } catch (const std::exception& ex) {
+            ERROR << "Failed to build conveyor: " << ex.what() << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}

@@ -1,4 +1,4 @@
-#include <JsonReader.hpp>
+#include <ConveyorOrchestrator.hpp>
 #include <iostream>
 
 #include <boost/log/core.hpp>
@@ -40,13 +40,13 @@ int32_t main(int argc, char const *argv[])
     init_logging();
     const std::string configPath = (argc > 1) ? argv[1] : "/home/luchinin/my_source/Course_poject/Server/pipeline.json";
 
-    JsonReader reader(configPath);
-    if (!reader.load()) {
+    ConveyorOrchestrator orchestrator(configPath);
+    if (!orchestrator.load()) {
         std::cerr << "Failed to load config: " << configPath << std::endl;
         return 1;
     }
 
-    if (!reader.run()) {
+    if (!orchestrator.run()) {
         std::cerr << "Failed to run pipeline" << std::endl;
         return 1;
     }
