@@ -10,9 +10,9 @@
 
 #include <toml++/toml.h>
 
-class Config {
+class Variables {
 public:
-    static Config& instance();
+    static Variables& instance();
 
     void registerEnum(const std::string& key,
                       const std::unordered_map<std::string, int>& values);
@@ -21,7 +21,7 @@ public:
     std::any get(const std::string& key) const;
 
 private:
-    Config() = default;
+    Variables() = default;
 
     bool parseTable(const toml::table& tbl);
     bool processValue(const std::string& key,
@@ -37,5 +37,9 @@ private:
     > enums_;
     std::unordered_map<std::string, std::any> data_;
 };
+
+// If token starts with '$', tries to resolve it from Variables storage.
+// Returns empty std::any when token is not a variable name or not found.
+std::any resolveVariableToken(const std::string& token);
 
 #endif // VARIABLES_H

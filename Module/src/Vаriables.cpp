@@ -3,18 +3,18 @@
 #include <toml++/toml.h>
 #include <iostream>
 
-Config& Config::instance() {
-    static Config inst;
+Variables& Variables::instance() {
+    static Variables inst;
     return inst;
 }
 
-void Config::registerEnum(const std::string& key,
+void Variables::registerEnum(const std::string& key,
                           const std::unordered_map<std::string, int>& values) {
     std::unique_lock lock(mutex_);
     enums_[key] = values;
 }
 
-bool Config::load(const std::string& filename) {
+bool Variables::load(const std::string& filename) {
     std::unique_lock lock(mutex_);
 
     data_.clear();
@@ -31,7 +31,7 @@ bool Config::load(const std::string& filename) {
     }
 }
 
-bool Config::parseTable(const toml::table& tbl) {
+bool Variables::parseTable(const toml::table& tbl) {
     for (const auto& [key, value] : tbl) {
         std::string k{key.str()};
 
@@ -46,7 +46,7 @@ bool Config::parseTable(const toml::table& tbl) {
     return true;
 }
 
-bool Config::processValue(const std::string& key,
+bool Variables::processValue(const std::string& key,
                           const toml::node& value) {
     // ENUM (string → int)
     if (value.is_string()) {
@@ -93,7 +93,7 @@ bool Config::processValue(const std::string& key,
     return error(key, "unsupported type");
 }
 
-std::any Config::get(const std::string& key) const {
+std::any Variables::get(const std::string& key) const {
     std::shared_lock lock(mutex_);
 
     auto it = data_.find(key);
@@ -104,7 +104,7 @@ std::any Config::get(const std::string& key) const {
     return {};
 }
 
-bool Config::error(const std::string& key,
+bool Variables::error(const std::string& key,
                    const std::string& message,
                    const std::string& location) const {
     std::cerr << "[Config Error] key=\"" << key << "\" "
@@ -116,4 +116,17 @@ bool Config::error(const std::string& key,
 
     std::cerr << "\n";
     return false;
+}
+
+std::any resolveVariableToken(const std::string& token) {
+    if (token.empty() || token[0] != '$') {
+        return {};
+    }
+
+    std::string key = token.substr(1);
+    if (key.empty()) {
+        return {};
+    }
+
+    return Variables::instance().get(key);
 }

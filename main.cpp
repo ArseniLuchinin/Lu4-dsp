@@ -43,7 +43,7 @@ void init_logging()
 
 int32_t main(int argc, char const *argv[])
 {
-    Config::instance().load("variables.toml");
+    Variables::instance().load("variables.toml");
     if(not checkGPU()){
         return -1;
     }
