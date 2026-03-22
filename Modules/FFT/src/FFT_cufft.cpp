@@ -318,19 +318,21 @@ void FFT::setParam(const std::string& paramName, const std::any& value) {
 bool FFT::setData(std::shared_ptr<IData> data) {
     auto gpuFloatData = std::dynamic_pointer_cast<GpuFloatSignal>(data);
     if (gpuFloatData) {
-        const bool needNewBuffer =
-            !std::holds_alternative<GpuFloatSignalPtr>(m_overlapBuffer) ||
-            !std::get<GpuFloatSignalPtr>(m_overlapBuffer) ||
-            std::get<GpuFloatSignalPtr>(m_overlapBuffer)->availableSize() < m_overlapSize;
-
         m_inDataPtr = gpuFloatData;
         m_inputKind = InputKind::Real;
         m_planType = CUFFT_R2C;
         m_outputPerBatch = (m_fftSize / 2) + 1;
 
-        if (needNewBuffer) {
+        const auto* complexBuffer = std::get_if<GpuComplexFloatSignalPtr>(&m_overlapBuffer);
+        const auto* floatBuffer = std::get_if<GpuFloatSignalPtr>(&m_overlapBuffer);
+
+        if (floatBuffer && *floatBuffer) {
+            // штатный путь: переиспользуем существующий overlap-buffer
+        } else if (complexBuffer && *complexBuffer) {
+            ERROR << "FFT::setData: overlap buffer type changed unexpectedly." << std::endl;
+            return false;
+        } else {
             m_overlapBuffer = std::make_shared<GpuFloatSignal>(m_overlapSize);
-            m_isFirstRun = true;
         }
     } else {
         auto gpuComplexData = std::dynamic_pointer_cast<GpuComplexFloatSignal>(data);
@@ -339,19 +341,21 @@ bool FFT::setData(std::shared_ptr<IData> data) {
             return false;
         }
 
-        const bool needNewBuffer =
-            !std::holds_alternative<GpuComplexFloatSignalPtr>(m_overlapBuffer) ||
-            !std::get<GpuComplexFloatSignalPtr>(m_overlapBuffer) ||
-            std::get<GpuComplexFloatSignalPtr>(m_overlapBuffer)->availableSize() < m_overlapSize;
-
         m_inDataPtr = gpuComplexData;
         m_inputKind = InputKind::Complex;
         m_planType = CUFFT_C2C;
         m_outputPerBatch = m_fftSize;
 
-        if (needNewBuffer) {
+        const auto* complexBuffer = std::get_if<GpuComplexFloatSignalPtr>(&m_overlapBuffer);
+        const auto* floatBuffer = std::get_if<GpuFloatSignalPtr>(&m_overlapBuffer);
+
+        if (complexBuffer && *complexBuffer) {
+            // штатный путь: переиспользуем существующий overlap-buffer
+        } else if (floatBuffer && *floatBuffer) {
+            ERROR << "FFT::setData: overlap buffer type changed unexpectedly." << std::endl;
+            return false;
+        } else {
             m_overlapBuffer = std::make_shared<GpuComplexFloatSignal>(m_overlapSize);
-            m_isFirstRun = true;
         }
     }
 
