@@ -31,7 +31,10 @@ public:
     std::shared_ptr<IData> getData() override;
 
 private:
-    bool initPlan();
+    bool initPlan(int batchCount);
+    int calcBatchCount(size_t inputSize) const;
+    bool prepareComplexFrames(cufftComplex* inputPtr, int batchCount);
+    bool updateOverlapBuffer(cufftComplex* inputPtr, int batchCount);
 
     SignalPtr m_inDataPtr;
     InputKind m_inputKind = InputKind::Real;
@@ -39,11 +42,15 @@ private:
     cufftType m_planType = CUFFT_R2C;
     size_t m_outputPerBatch = 0;
     std::shared_ptr<GpuComplexFloatSignal> m_outData;
+    std::shared_ptr<GpuComplexFloatSignal> m_overlapBuffer;
+    std::shared_ptr<GpuComplexFloatSignal> m_frameBuffer;
 
     cufftHandle m_plan = 0;
 
     size_t m_fftSize = 1024;
     size_t m_hopSize = 0;
+    size_t m_overlapSize = 0;
+    bool m_isFirstRun = true;
 };
 
 #endif

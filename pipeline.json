@@ -18,6 +18,7 @@
           "params": {
             "sample rate": "$SAMPLE_RATE",
             "fft size": "$FFT_SIZE",
+            "hop size": "$FFT_HOP_SIZE",
             "window size": "$FFT_WINDOW",
             "centered spectrum": true,
             "freq min": -1048576.0,
@@ -41,7 +42,8 @@
         {
           "name": "FFT",
           "params": {
-            "fft size": "$FFT_SIZE"
+            "fft size": "$FFT_SIZE",
+            "hop size": "$FFT_HOP_SIZE"
           }
         },
         {
