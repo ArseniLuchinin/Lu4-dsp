@@ -1,6 +1,7 @@
 #include "FFT_cufft.hpp"
 #include "FFT_overlap_callback.hpp"
 #include <VariablesResolve.hpp>
+#include <type_traits>
 #include <module.hpp>
 #include <utility>
 #include <iostream>
@@ -10,6 +11,10 @@
 
 
 namespace {
+
+template<typename T>
+constexpr bool is_complex_v = std::is_same_v<T, cufftComplex>;
+
 const char* cufftResultToString(cufftResult result) {
     switch (result) {
     case CUFFT_SUCCESS:
@@ -70,12 +75,6 @@ bool FFT::init() {
     }
 
     m_overlapSize = m_fftSize - m_hopSize;
-    m_overlapBuffer = std::make_shared<GpuComplexFloatSignal>(m_overlapSize);
-    if (m_overlapSize > 0 && (!m_overlapBuffer || !m_overlapBuffer->isValid())) {
-        ERROR << "FFT::init: failed to allocate overlap buffer." << std::endl;
-        return false;
-    }
-
     m_isFirstRun = true;
     return true;
 }
@@ -128,7 +127,7 @@ bool FFT::initPlan(int batchCount){
         nullptr,
         ostride,
         odist,
-        CUFFT_C2C,
+        m_planType,
         batchCount,
         &workSize
     );
@@ -142,7 +141,7 @@ bool FFT::initPlan(int batchCount){
     return true;
 }
 
-bool FFT::updateOverlapBuffer(cufftComplex* inputPtr, int batchCount) {
+bool FFT::updateOverlapBuffer(float* inputPtr, int batchCount, const GpuFloatSignalPtr& buffer) {
     if (m_overlapSize == 0) {
         return true;
     }
@@ -151,11 +150,32 @@ bool FFT::updateOverlapBuffer(cufftComplex* inputPtr, int batchCount) {
         ? static_cast<size_t>(batchCount) * m_hopSize
         : static_cast<size_t>(batchCount) * m_hopSize - m_overlapSize;
 
-    m_overlapBuffer->setDataFromDevice(
+    buffer->setDataFromDevice(
+        inputPtr + tailStart,
+        m_overlapSize
+    );
+    if (!buffer->isValid()) {
+        ERROR << "FFT::updateOverlapBuffer: failed to update overlap buffer." << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+bool FFT::updateOverlapBuffer(cufftComplex* inputPtr, int batchCount, const GpuComplexFloatSignalPtr& buffer) {
+    if (m_overlapSize == 0) {
+        return true;
+    }
+
+    const size_t tailStart = m_isFirstRun
+        ? static_cast<size_t>(batchCount) * m_hopSize
+        : static_cast<size_t>(batchCount) * m_hopSize - m_overlapSize;
+
+    buffer->setDataFromDevice(
         reinterpret_cast<cuComplex*>(inputPtr + tailStart),
         m_overlapSize
     );
-    if (!m_overlapBuffer->isValid()) {
+    if (!buffer->isValid()) {
         ERROR << "FFT::updateOverlapBuffer: failed to update overlap buffer." << std::endl;
         return false;
     }
@@ -191,69 +211,93 @@ bool FFT::run() {
     }
 
     auto* outPtr = reinterpret_cast<cufftComplex*>(m_outData->getDeviceData());
-    const auto& inData = std::get<GpuComplexFloatSignalPtr>(m_inDataPtr);
-    auto* inPtr = reinterpret_cast<cufftComplex*>(inData->getDeviceData());
-    auto* signalPtr = m_isFirstRun ? (inPtr + m_overlapSize) : inPtr;
+    const auto runVisitor = [&](const auto& inData, const auto& overlapBuffer) -> bool {
+        using InPtrType = std::decay_t<decltype(inData)>;
+        using BufferPtrType = std::decay_t<decltype(overlapBuffer)>;
+        using SampleType = std::conditional_t<
+            std::is_same_v<InPtrType, GpuComplexFloatSignalPtr>,
+            cufftComplex,
+            float>;
 
-    if (m_isFirstRun && m_overlapSize > 0) {
-        m_overlapBuffer->setDataFromDevice(reinterpret_cast<cuComplex*>(inPtr), m_overlapSize);
-        if (!m_overlapBuffer->isValid()) {
-            ERROR << "FFT::run: failed to initialize overlap buffer." << std::endl;
-            cufftDestroy(m_plan);
-            m_plan = 0;
+        if constexpr (!std::is_same_v<InPtrType, BufferPtrType>) {
+            ERROR << "FFT::run: overlap buffer type does not match input type." << std::endl;
             return false;
+        } else {
+            auto* inPtr = reinterpret_cast<SampleType*>(inData->getDeviceData());
+            auto* signalPtr = m_isFirstRun ? (inPtr + m_overlapSize) : inPtr;
+
+            if (m_isFirstRun && m_overlapSize > 0) {
+                if constexpr (is_complex_v<SampleType>) {
+                    overlapBuffer->setDataFromDevice(reinterpret_cast<cuComplex*>(inPtr), m_overlapSize);
+                } else {
+                    overlapBuffer->setDataFromDevice(inPtr, m_overlapSize);
+                }
+
+                if (!overlapBuffer->isValid()) {
+                    ERROR << "FFT::run: failed to initialize overlap buffer." << std::endl;
+                    return false;
+                }
+            }
+
+            void* callbackData = nullptr;
+            std::string callbackError;
+            SampleType* overlapPtr = reinterpret_cast<SampleType*>(overlapBuffer->getDeviceData());
+            if (!setupOverlapLoadCallback(
+                    m_plan,
+                    signalPtr,
+                    overlapPtr,
+                    static_cast<int>(m_fftSize),
+                    static_cast<int>(m_overlapSize),
+                    static_cast<int>(m_hopSize),
+                    &callbackData,
+                    &callbackError)) {
+                ERROR << "FFT::run: failed to configure overlap callback. "
+                      << callbackError << std::endl;
+                return false;
+            }
+
+            cufftResult execStatus = CUFFT_SUCCESS;
+            if constexpr (is_complex_v<SampleType>) {
+                execStatus = cufftExecC2C(m_plan,
+                                          reinterpret_cast<cufftComplex*>(inPtr),
+                                          outPtr,
+                                          CUFFT_FORWARD);
+            } else {
+                execStatus = cufftExecR2C(m_plan, inPtr, outPtr);
+            }
+
+            if (execStatus != CUFFT_SUCCESS) {
+                ERROR << "FFT::run: cufftExec failed: "
+                      << cufftResultToString(execStatus) << std::endl;
+                releaseOverlapLoadCallback(callbackData);
+                return false;
+            }
+
+            const auto cudaErr = cudaGetLastError();
+            if (cudaErr != cudaSuccess) {
+                ERROR << "FFT::run: CUDA execution error after cufftExec: "
+                      << cudaGetErrorString(cudaErr) << std::endl;
+                releaseOverlapLoadCallback(callbackData);
+                return false;
+            }
+
+            if (!updateOverlapBuffer(inPtr, batchCount, overlapBuffer)) {
+                releaseOverlapLoadCallback(callbackData);
+                return false;
+            }
+
+            releaseOverlapLoadCallback(callbackData);
+            return true;
         }
-    }
+    };
 
-    void* callbackData = nullptr;
-    std::string callbackError;
-    if (!setupOverlapLoadCallback(
-            m_plan,
-            signalPtr,
-            reinterpret_cast<cufftComplex*>(m_overlapBuffer->getDeviceData()),
-            static_cast<int>(m_fftSize),
-            static_cast<int>(m_overlapSize),
-            static_cast<int>(m_hopSize),
-            &callbackData,
-            &callbackError)) {
-        ERROR << "FFT::run: failed to configure overlap callback. "
-              << callbackError << std::endl;
+    const bool runOk = std::visit(runVisitor, m_inDataPtr, m_overlapBuffer);
+    if (!runOk) {
         cufftDestroy(m_plan);
         m_plan = 0;
         return false;
     }
 
-    const auto execStatus = cufftExecC2C(
-        m_plan,
-        inPtr,
-        outPtr,
-        CUFFT_FORWARD
-    );
-    if (execStatus != CUFFT_SUCCESS) {
-        ERROR << "FFT::run: cufftExec failed: " << cufftResultToString(execStatus) << std::endl;
-        releaseOverlapLoadCallback(callbackData);
-        cufftDestroy(m_plan);
-        m_plan = 0;
-        return false;
-    }
-
-    const auto cudaErr = cudaGetLastError();
-    if (cudaErr != cudaSuccess) {
-        ERROR << "FFT::run: CUDA execution error after cufftExecR2C: " << cudaGetErrorString(cudaErr) << std::endl;
-        releaseOverlapLoadCallback(callbackData);
-        cufftDestroy(m_plan);
-        m_plan = 0;
-        return false;
-    }
-
-    if (!updateOverlapBuffer(inPtr, batchCount)) {
-        releaseOverlapLoadCallback(callbackData);
-        cufftDestroy(m_plan);
-        m_plan = 0;
-        return false;
-    }
-
-    releaseOverlapLoadCallback(callbackData);
     cufftDestroy(m_plan);
     m_plan = 0;
     m_isFirstRun = false;
@@ -274,20 +318,42 @@ void FFT::setParam(const std::string& paramName, const std::any& value) {
 bool FFT::setData(std::shared_ptr<IData> data) {
     auto gpuFloatData = std::dynamic_pointer_cast<GpuFloatSignal>(data);
     if (gpuFloatData) {
-        ERROR << "FFT::setData: real input is temporarily disabled while overlap logic is implemented only for complex signals." << std::endl;
-        return false;
-    }
+        const bool needNewBuffer =
+            !std::holds_alternative<GpuFloatSignalPtr>(m_overlapBuffer) ||
+            !std::get<GpuFloatSignalPtr>(m_overlapBuffer) ||
+            std::get<GpuFloatSignalPtr>(m_overlapBuffer)->availableSize() < m_overlapSize;
 
-    auto gpuComplexData = std::dynamic_pointer_cast<GpuComplexFloatSignal>(data);
-    if (!gpuComplexData) {
-        ERROR << "FFT::setData: input IData is not supported signal type." << std::endl;
-        return false;
-    }
+        m_inDataPtr = gpuFloatData;
+        m_inputKind = InputKind::Real;
+        m_planType = CUFFT_R2C;
+        m_outputPerBatch = (m_fftSize / 2) + 1;
 
-    m_inDataPtr = gpuComplexData;
-    m_inputKind = InputKind::Complex;
-    m_planType = CUFFT_C2C;
-    m_outputPerBatch = m_fftSize;
+        if (needNewBuffer) {
+            m_overlapBuffer = std::make_shared<GpuFloatSignal>(m_overlapSize);
+            m_isFirstRun = true;
+        }
+    } else {
+        auto gpuComplexData = std::dynamic_pointer_cast<GpuComplexFloatSignal>(data);
+        if (!gpuComplexData) {
+            ERROR << "FFT::setData: input IData is not supported signal type." << std::endl;
+            return false;
+        }
+
+        const bool needNewBuffer =
+            !std::holds_alternative<GpuComplexFloatSignalPtr>(m_overlapBuffer) ||
+            !std::get<GpuComplexFloatSignalPtr>(m_overlapBuffer) ||
+            std::get<GpuComplexFloatSignalPtr>(m_overlapBuffer)->availableSize() < m_overlapSize;
+
+        m_inDataPtr = gpuComplexData;
+        m_inputKind = InputKind::Complex;
+        m_planType = CUFFT_C2C;
+        m_outputPerBatch = m_fftSize;
+
+        if (needNewBuffer) {
+            m_overlapBuffer = std::make_shared<GpuComplexFloatSignal>(m_overlapSize);
+            m_isFirstRun = true;
+        }
+    }
 
     const auto inputSize = std::visit([](const auto& ptr) { return ptr->size(); }, m_inDataPtr);
     if (m_hopSize == 0) {
@@ -310,6 +376,14 @@ bool FFT::setData(std::shared_ptr<IData> data) {
     auto outData = std::make_shared<GpuComplexFloatSignal>(outputSize);
     if (!outData) {
         ERROR << "FFT::setData: failed to allocate output GPU buffer, size = " << outputSize << std::endl;
+        return false;
+    }
+
+    const bool overlapOk = std::visit([](const auto& ptr) {
+        return ptr != nullptr && ptr->isValid();
+    }, m_overlapBuffer);
+    if (m_overlapSize > 0 && !overlapOk) {
+        ERROR << "FFT::setData: failed to allocate overlap buffer." << std::endl;
         return false;
     }
 
