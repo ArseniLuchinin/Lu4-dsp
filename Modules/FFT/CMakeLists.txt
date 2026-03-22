@@ -11,6 +11,10 @@ add_library(${PROJECT_NAME} SHARED
     src/example_fft_overlap.cpp
 )
 
+set_source_files_properties(src/example_fft_overlap.cpp PROPERTIES
+    LANGUAGE CUDA
+)
+
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_ARCHITECTURES 75  

@@ -1,4 +1,5 @@
 #include <cufft.h>
+#include <cufftXt.h>
 #include <cuda_runtime.h>
 
 // =========================
@@ -11,8 +12,6 @@ struct CallbackData {
     int fftSize;
     int overlap;
     int hop;
-
-    int baseOffset; // overlap (первый запуск) или 0 (дальше)
 };
 
 // =========================
@@ -23,6 +22,9 @@ __device__ cufftComplex load_cb(void* dataIn,
                                 void* callerInfo,
                                 void* sharedPtr)
 {
+    (void)dataIn;
+    (void)sharedPtr;
+
     CallbackData* cb = (CallbackData*)callerInfo;
 
     int fftSize = cb->fftSize;
@@ -32,16 +34,12 @@ __device__ cufftComplex load_cb(void* dataIn,
     int batch = offset / fftSize;
     int i     = offset % fftSize;
 
-    // Переносим -overlap заранее
-    int base = cb->baseOffset + batch * hop - overlap;
-    int idx  = base + i;
+    int windowStart = batch * hop - overlap;
+    int signalIdx   = windowStart + i;
 
-    // Выбираем адрес (одно чтение!)
-    cufftComplex* ptr = (i < overlap)
-        ? (cb->buffer + i)
-        : (cb->signal + idx);
-
-    return *ptr;
+    return (signalIdx >= 0)
+        ? cb->signal[signalIdx]
+        : cb->buffer[signalIdx + overlap];
 }
 
 class OverlapFFT
@@ -63,21 +61,13 @@ public:
                  cufftComplex* d_output,
                  cufftComplex* d_buffer)
     {
-        // =========================
-        // Определяем параметры
-        // =========================
-
-        int baseOffset = isFirstRun ? overlap : 0;
-
-        int numBatches;
-        if (isFirstRun)
+        // TODO: в рабочем коде проверить fftSize / overlap / signalSize и указатели.
+        int numBatches = isFirstRun
+            ? (signalSize - overlap) / hop
+            : signalSize / hop;
+        if (numBatches <= 0)
         {
-            // ⚠️ предполагается что данных достаточно
-            numBatches = (signalSize - overlap) / hop;
-        }
-        else
-        {
-            numBatches = signalSize / hop;
+            return;
         }
 
         // =========================
@@ -85,6 +75,7 @@ public:
         // =========================
 
         cufftHandle plan;
+        // TODO: проверить код возврата cufftPlan1d.
         cufftPlan1d(&plan, fftSize, CUFFT_C2C, numBatches);
 
         // =========================
@@ -92,20 +83,20 @@ public:
         // =========================
 
         CallbackData h_cb;
-        h_cb.signal = d_signal;
+        h_cb.signal = isFirstRun ? (d_signal + overlap) : d_signal;
         h_cb.buffer = d_buffer;
         h_cb.fftSize = fftSize;
         h_cb.overlap = overlap;
         h_cb.hop = hop;
-        h_cb.baseOffset = baseOffset;
 
-        CallbackData* d_cb;
+        CallbackData* d_cb = nullptr;
+        // TODO: проверить коды возврата cudaMalloc / cudaMemcpy.
         cudaMalloc(&d_cb, sizeof(CallbackData));
         cudaMemcpy(d_cb, &h_cb, sizeof(CallbackData), cudaMemcpyHostToDevice);
 
         cufftCallbackLoadC d_load;
+        // TODO: проверить коды возврата cudaMemcpyFromSymbol / cufftXtSetCallback.
         cudaMemcpyFromSymbol(&d_load, load_cb, sizeof(d_load));
-
         cufftXtSetCallback(plan,
                            (void**)&d_load,
                            CUFFT_CB_LD_COMPLEX,
@@ -115,40 +106,35 @@ public:
         // Запуск FFT
         // =========================
 
+        // TODO: проверить код возврата cufftExecC2C и cudaGetLastError.
         cufftExecC2C(plan, d_signal, d_output, CUFFT_FORWARD);
 
         // =========================
         // Обновление buffer
         // =========================
 
-        int lastBatch = numBatches - 1;
-
-        int baseIdx;
-        if (isFirstRun)
+        if (overlap > 0)
         {
-            baseIdx = overlap + lastBatch * hop;
-        }
-        else
-        {
-            baseIdx = lastBatch * hop;
-        }
+            int tailStart = isFirstRun
+                ? numBatches * hop
+                : (numBatches - 1) * hop;
 
-        // Копируем хвост последнего окна
-        cudaMemcpy(d_buffer,
-                   d_signal + baseIdx + (fftSize - overlap),
-                   overlap * sizeof(cufftComplex),
-                   cudaMemcpyDeviceToDevice);
+            // Для этого примера предполагается, что хвост последнего окна
+            // всегда лежит непрерывно в d_signal.
+            // TODO: проверить код возврата cudaMemcpy.
+            cudaMemcpy(d_buffer,
+                       d_signal + tailStart,
+                       overlap * sizeof(cufftComplex),
+                       cudaMemcpyDeviceToDevice);
+        }
 
         // =========================
         // Cleanup
         // =========================
 
+        // TODO: проверить коды возврата cufftDestroy / cudaFree.
         cufftDestroy(plan);
         cudaFree(d_cb);
-
-        // =========================
-        // Переход в steady-state
-        // =========================
 
         isFirstRun = false;
     }
@@ -157,6 +143,5 @@ private:
     int fftSize;
     int overlap;
     int hop;
-
     bool isFirstRun;
 };
