@@ -8,6 +8,7 @@ find_package(CUDAToolkit REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
     src/FFT_cufft.cpp
+    src/FFT_overlap_callback.cu
     src/example_fft_overlap.cpp
 )
 
@@ -31,7 +32,8 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         CUDA::cudart
-        CUDA::cufft
+        CUDA::cufft_static
+        CUDA::culibos
         DataContainers
         Module
         logger

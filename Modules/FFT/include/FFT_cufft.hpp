@@ -33,7 +33,6 @@ public:
 private:
     bool initPlan(int batchCount);
     int calcBatchCount(size_t inputSize) const;
-    bool prepareComplexFrames(cufftComplex* inputPtr, int batchCount);
     bool updateOverlapBuffer(cufftComplex* inputPtr, int batchCount);
 
     SignalPtr m_inDataPtr;
@@ -43,7 +42,6 @@ private:
     size_t m_outputPerBatch = 0;
     std::shared_ptr<GpuComplexFloatSignal> m_outData;
     std::shared_ptr<GpuComplexFloatSignal> m_overlapBuffer;
-    std::shared_ptr<GpuComplexFloatSignal> m_frameBuffer;
 
     cufftHandle m_plan = 0;
 
