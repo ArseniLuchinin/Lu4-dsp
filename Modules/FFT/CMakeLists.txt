@@ -8,6 +8,7 @@ find_package(CUDAToolkit REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
     src/FFT_cufft.cpp
+    src/example_fft_overlap.cpp
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
