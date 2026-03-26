@@ -10,7 +10,6 @@ add_library(${PROJECT_NAME} SHARED
     src/FFT_cufft.cpp
     src/FFT_overlap_impl.cpp
     src/FFT_overlap_callback.cu
-    src/example_fft_overlap.cpp
 )
 
 set_source_files_properties(src/example_fft_overlap.cpp PROPERTIES
