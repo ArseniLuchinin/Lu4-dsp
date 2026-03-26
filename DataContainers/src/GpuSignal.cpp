@@ -130,6 +130,17 @@ void GpuSignal<T, Tag>::setDataFromDevice(T* data, size_t size) {
 }
 
 template<typename T, typename Tag>
+bool GpuSignal<T, Tag>::setLogicalSize(size_t size) {
+    if (size > m_resedSize) {
+        ERROR << "GPU data size is smaller than requested logical size";
+        return false;
+    }
+    m_size = size;
+    m_siValid = (m_data != nullptr);
+    return m_siValid;
+}
+
+template<typename T, typename Tag>
 size_t GpuSignal<T, Tag>::size() const {
     return m_size;
 }

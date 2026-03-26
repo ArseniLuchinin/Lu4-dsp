@@ -32,6 +32,9 @@ private:
     double m_freqMin = 0.0;
     double m_freqMax = 0.0;
     bool m_hasFreqRange = false;
+    bool m_hasDbRange = false;
+    double m_dbMin = 0.0;
+    double m_dbMax = 0.0;
 
     bool m_isShow = true;
     std::string m_savePath;

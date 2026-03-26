@@ -20,6 +20,7 @@ public:
     bool reserve(const size_t size) override;
     void setDataFromHost(T* data, size_t size);
     void setDataFromDevice(T* data, size_t size);
+    bool setLogicalSize(size_t size);
 
     size_t size() const override;
     size_t availableSize() const override;

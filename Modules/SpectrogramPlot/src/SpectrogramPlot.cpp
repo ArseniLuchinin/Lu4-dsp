@@ -12,6 +12,63 @@
 #include <string>
 #include <vector>
 
+namespace {
+
+bool resolveFreqBins(size_t fftSize,
+                     size_t windowSize,
+                     size_t totalSize,
+                     size_t* freqBins,
+                     bool* isRealSpectrum)
+{
+    if (freqBins == nullptr || isRealSpectrum == nullptr) {
+        return false;
+    }
+
+    const size_t realBins = (fftSize / 2) + 1;
+    const size_t complexBins = fftSize;
+    if (realBins == 0 || complexBins == 0) {
+        return false;
+    }
+
+    if (windowSize > 0) {
+        if (windowSize != realBins && windowSize != complexBins) {
+            return false;
+        }
+        *freqBins = windowSize;
+        *isRealSpectrum = (windowSize == realBins);
+        return true;
+    }
+
+    const bool divisibleReal = (totalSize >= realBins) && ((totalSize % realBins) == 0);
+    const bool divisibleComplex = (totalSize >= complexBins) && ((totalSize % complexBins) == 0);
+
+    if (divisibleReal) {
+        *freqBins = realBins;
+        *isRealSpectrum = true;
+        return true;
+    }
+    if (divisibleComplex) {
+        *freqBins = complexBins;
+        *isRealSpectrum = false;
+        return true;
+    }
+
+    return false;
+}
+
+void fftShiftRows(std::vector<float>& data, size_t rows, size_t binsPerRow)
+{
+    const size_t shift = binsPerRow / 2;
+    for (size_t y = 0; y < rows; ++y) {
+        auto rowBegin = data.begin() + static_cast<std::ptrdiff_t>(y * binsPerRow);
+        auto rowMiddle = rowBegin + static_cast<std::ptrdiff_t>(shift);
+        auto rowEnd = rowBegin + static_cast<std::ptrdiff_t>(binsPerRow);
+        std::rotate(rowBegin, rowMiddle, rowEnd);
+    }
+}
+
+} // namespace
+
 IModule* createModule() {
     return new SpectrogramPlot();
 }
@@ -37,49 +94,70 @@ bool SpectrogramPlot::run() {
         return false;
     }
 
-    if (m_windowSize > 0) {
-        m_freqBins = m_windowSize;
-    } else {
-        m_freqBins = (m_fftSize / 2) + 1;
-    }
-    if (m_freqBins == 0) {
-        ERROR << "SpectrogramPlot::run: frequency bins count is zero." << std::endl;
+    const size_t totalSize = m_data->size();
+    bool isRealSpectrum = false;
+    if (!resolveFreqBins(m_fftSize, m_windowSize, totalSize, &m_freqBins, &isRealSpectrum)) {
+        ERROR << "SpectrogramPlot::run: failed to determine valid spectrogram width. "
+              << "Expected window size " << ((m_fftSize / 2) + 1)
+              << " (real) or " << m_fftSize << " (complex)." << std::endl;
         return false;
     }
 
-    const size_t totalSize = m_data->size();
     if (totalSize < m_freqBins) {
         ERROR << "SpectrogramPlot::run: input size (" << totalSize
               << ") is smaller than one spectrogram row (" << m_freqBins << ")." << std::endl;
         return false;
     }
 
+    if ((totalSize % m_freqBins) != 0) {
+        ERROR << "SpectrogramPlot::run: input size (" << totalSize
+              << ") is not divisible by spectrogram row size (" << m_freqBins << ")." << std::endl;
+        return false;
+    }
+
+    if (m_centeredSpectrum && isRealSpectrum) {
+        ERROR << "SpectrogramPlot::run: centered spectrum is supported only for full complex spectrum."
+              << std::endl;
+        return false;
+    }
+
+    if (m_hasDbRange && !(m_dbMax > m_dbMin)) {
+        ERROR << "SpectrogramPlot::run: invalid dB range, 'db max' must be greater than 'db min'."
+              << std::endl;
+        return false;
+    }
+
     const size_t rows = totalSize / m_freqBins;
-    const size_t usedSize = rows * m_freqBins;
     if (rows == 0) {
         ERROR << "SpectrogramPlot::run: no rows to render." << std::endl;
         return false;
     }
 
-    if (usedSize != totalSize) {
-        INFO << "SpectrogramPlot::run: input size is not divisible by row size. Ignoring tail of "
-             << (totalSize - usedSize) << " elements." << std::endl;
-    }
-
-    std::vector<float> hostBuffer(usedSize);
+    std::vector<float> hostBuffer(totalSize);
     const auto copyErr = cudaMemcpy(
         hostBuffer.data(),
         m_data->getDeviceData(),
-        usedSize * sizeof(float),
+        totalSize * sizeof(float),
         cudaMemcpyDeviceToHost);
     if (copyErr != cudaSuccess) {
         ERROR << "SpectrogramPlot::run: cudaMemcpy failed: " << cudaGetErrorString(copyErr) << std::endl;
         return false;
     }
 
-    const auto [minIt, maxIt] = std::minmax_element(hostBuffer.begin(), hostBuffer.end());
-    const float minValue = *minIt;
-    const float maxValue = *maxIt;
+    if (m_centeredSpectrum) {
+        fftShiftRows(hostBuffer, rows, m_freqBins);
+    }
+
+    float minValue = 0.0f;
+    float maxValue = 0.0f;
+    if (m_hasDbRange) {
+        minValue = static_cast<float>(m_dbMin);
+        maxValue = static_cast<float>(m_dbMax);
+    } else {
+        const auto [minIt, maxIt] = std::minmax_element(hostBuffer.begin(), hostBuffer.end());
+        minValue = *minIt;
+        maxValue = *maxIt;
+    }
     const float range = std::max(maxValue - minValue, 1.0e-12f);
 
     cv::Mat image(static_cast<int>(rows), static_cast<int>(m_freqBins), CV_8UC3);
@@ -113,7 +191,6 @@ bool SpectrogramPlot::run() {
     const int thickness = 1;
     const cv::Scalar color(0, 0, 0);
 
-    const bool isRealSpectrum = (m_freqBins == (m_fftSize / 2 + 1));
     double freqMin = 0.0;
     double freqMax = 0.0;
     if (m_hasFreqRange) {
@@ -145,7 +222,7 @@ bool SpectrogramPlot::run() {
     for (int t = 0; t <= timeTicks; ++t) {
         const double frac = static_cast<double>(t) / timeTicks;
         const int y = topMargin + static_cast<int>(std::round(frac * (rows - 1)));
-        const double sec = frac * rows * secondsPerRow;
+        const double sec = frac * (rows - 1) * secondsPerRow;
         const std::string label = std::to_string(sec).substr(0, 5);
         cv::putText(canvas, label, cv::Point(5, y + 4), font, fontScale, color, thickness);
         cv::line(canvas, cv::Point(leftMargin - 5, y), cv::Point(leftMargin, y), color, 1);
@@ -202,6 +279,18 @@ void SpectrogramPlot::setParam(const std::string& paramName, const std::any& val
     if (paramName == "freq max") {
         m_freqMax = std::any_cast<double>(resolved);
         m_hasFreqRange = true;
+        return;
+    }
+
+    if (paramName == "db min") {
+        m_dbMin = std::any_cast<double>(resolved);
+        m_hasDbRange = true;
+        return;
+    }
+
+    if (paramName == "db max") {
+        m_dbMax = std::any_cast<double>(resolved);
+        m_hasDbRange = true;
         return;
     }
 

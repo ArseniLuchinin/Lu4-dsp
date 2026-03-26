@@ -30,38 +30,28 @@ bool CS2AS::init() {
 }
 
 bool CS2AS::run() {
-
     if (!m_inData || !m_inData->isValid()) {
-        ERROR << "CS2AS::init: input complex spectrum is null or invalid." << std::endl;
+        ERROR << "CS2AS::run: input complex spectrum is null or invalid." << std::endl;
         return false;
     }
 
     const auto inSize = m_inData->size();
     if (inSize == 0) {
-        ERROR << "CS2AS::init: input complex spectrum has zero size." << std::endl;
+        ERROR << "CS2AS::run: input complex spectrum has zero size." << std::endl;
         return false;
     }
 
-    if (!m_outData or m_outData->availableSize() < inSize) {
-        m_outData = std::shared_ptr<GpuFloatSignal>(new GpuFloatSignal(inSize));
-    }
-
-    if (!m_outData->isValid()) {
-        ERROR << "CS2AS::init: output amplitude buffer is invalid." << std::endl;
-        return false;
-    }
-
-    if (!m_inData or !m_inData->isValid()) {
-        ERROR << "CS2AS::run: input complex spectrum is null or invalid." << std::endl;
-        return false;
-    }
-
-    if (!m_outData || m_outData->availableSize() != inSize) {
+    if (!m_outData || m_outData->availableSize() < inSize) {
         m_outData = std::make_shared<GpuFloatSignal>(inSize);
     }
 
     if (!m_outData->isValid()) {
         ERROR << "CS2AS::run: output amplitude buffer is invalid." << std::endl;
+        return false;
+    }
+
+    if (!m_outData->setLogicalSize(inSize)) {
+        ERROR << "CS2AS::run: failed to set output logical size." << std::endl;
         return false;
     }
 

@@ -49,6 +49,11 @@ bool RealFFTOverlapImpl::ensureOutputForBatch(int batchCount, size_t fftSize)
         return false;
     }
 
+    if (!m_outData->setLogicalSize(outputSize)) {
+        m_lastError = "RealFFTOverlapImpl::ensureOutputForBatch: failed to set output logical size.";
+        return false;
+    }
+
     return true;
 }
 
