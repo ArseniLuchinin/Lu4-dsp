@@ -88,16 +88,6 @@ int FFT::calcBatchCount(size_t inputSize) const {
 }
 
 bool FFT::initPlan(int batchCount){
-    if (batchCount <= 0) {
-        ERROR << "FFT::initPlan: no FFT frames to process (input too small)." << std::endl;
-        return false;
-    }
-
-    if (!m_impl) {
-        ERROR << "FFT::initPlan: implementation is not selected." << std::endl;
-        return false;
-    }
-
     m_plan = 0;
     int n[1] = {static_cast<int>(m_fftSize)};
     const int istride = 1;
@@ -150,23 +140,7 @@ bool FFT::run() {
         return false;
     }
 
-    const auto inputSize = m_impl->inputSize();
-    if (inputSize < m_fftSize) {
-        ERROR << "FFT::run: input size is smaller than fft size." << std::endl;
-        return false;
-    }
-
-    const int batchCount = calcBatchCount(inputSize);
-    if (batchCount <= 0) {
-        ERROR << "FFT::run: no FFT frames to process." << std::endl;
-        return false;
-    }
-
-    if (!m_impl->ensureOutputForBatch(batchCount, m_fftSize)) {
-        ERROR << "FFT::run: failed to prepare output buffer. "
-              << m_impl->lastError() << std::endl;
-        return false;
-    }
+    const int batchCount = calcBatchCount(m_impl->inputSize());
 
     if (!initPlan(batchCount)) {
         return false;

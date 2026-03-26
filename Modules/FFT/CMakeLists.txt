@@ -8,7 +8,8 @@ find_package(CUDAToolkit REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
     src/FFT_cufft.cpp
-    src/FFT_overlap_impl.cpp
+    src/FFT_overlap_real_impl.cpp
+    src/FFT_overlap_complex_impl.cpp
     src/FFT_overlap_callback.cu
 )
 
