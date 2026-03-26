@@ -1,5 +1,5 @@
 {
-  "variables": "variables.toml",
+  "variables": "/home/luchinin/my_source/Course_poject/Server/variables.toml",
   "conveyors": [
     {
       "name": "RX conveyor",
@@ -12,6 +12,13 @@
         },
         {
           "name": "CS2AS"
+        },
+        {
+          "name": "FFT_Shift",
+          "params": {
+            "fft size": "$FFT_SIZE",
+            "window size": "$FFT_WINDOW"
+          }
         },
         {
           "name": "SpectrogramPlot",

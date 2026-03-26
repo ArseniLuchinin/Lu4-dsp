@@ -56,17 +56,6 @@ bool resolveFreqBins(size_t fftSize,
     return false;
 }
 
-void fftShiftRows(std::vector<float>& data, size_t rows, size_t binsPerRow)
-{
-    const size_t shift = binsPerRow / 2;
-    for (size_t y = 0; y < rows; ++y) {
-        auto rowBegin = data.begin() + static_cast<std::ptrdiff_t>(y * binsPerRow);
-        auto rowMiddle = rowBegin + static_cast<std::ptrdiff_t>(shift);
-        auto rowEnd = rowBegin + static_cast<std::ptrdiff_t>(binsPerRow);
-        std::rotate(rowBegin, rowMiddle, rowEnd);
-    }
-}
-
 } // namespace
 
 IModule* createModule() {
@@ -142,10 +131,6 @@ bool SpectrogramPlot::run() {
     if (copyErr != cudaSuccess) {
         ERROR << "SpectrogramPlot::run: cudaMemcpy failed: " << cudaGetErrorString(copyErr) << std::endl;
         return false;
-    }
-
-    if (m_centeredSpectrum) {
-        fftShiftRows(hostBuffer, rows, m_freqBins);
     }
 
     float minValue = 0.0f;
