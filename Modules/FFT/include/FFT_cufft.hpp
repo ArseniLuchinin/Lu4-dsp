@@ -2,28 +2,18 @@
 #define FFT_CUFFT_H
 
 #include <IModule.hpp>
-#include <GpuFloatSignal.hpp>
-#include <GpuComplexSignal.hpp>
+#include <FFT_overlap_impl.hpp>
 
 #include <cufft.h>
 
 #include <memory>
-#include <variant>
 
 class FFT : public IModule {
-    using GpuFloatSignalPtr = std::shared_ptr<GpuFloatSignal>;
-    using GpuComplexFloatSignalPtr = std::shared_ptr<GpuComplexFloatSignal>;
-    using SignalPtr = std::variant<GpuComplexFloatSignalPtr, GpuFloatSignalPtr>;
-    using OverlapBufferPtr = std::variant<GpuComplexFloatSignalPtr, GpuFloatSignalPtr>;
-    enum class InputKind { Real, Complex };
-
 public:
     FFT();
     ~FFT() override;
 
     bool init() override;
-
-
     bool run() override;
 
     void setParam(const std::string& paramName, const std::any& value) override;
@@ -34,17 +24,8 @@ public:
 private:
     bool initPlan(int batchCount);
     int calcBatchCount(size_t inputSize) const;
-    bool updateOverlapBuffer(float* inputPtr, int batchCount, const GpuFloatSignalPtr& buffer);
-    bool updateOverlapBuffer(cufftComplex* inputPtr, int batchCount, const GpuComplexFloatSignalPtr& buffer);
 
-    SignalPtr m_inDataPtr;
-    OverlapBufferPtr m_overlapBuffer;
-    InputKind m_inputKind = InputKind::Real;
-
-    cufftType m_planType = CUFFT_R2C;
-    size_t m_outputPerBatch = 0;
-    std::shared_ptr<GpuComplexFloatSignal> m_outData;
-
+    std::unique_ptr<IFFTOverlapImpl> m_impl;
     cufftHandle m_plan = 0;
 
     size_t m_fftSize = 1024;
