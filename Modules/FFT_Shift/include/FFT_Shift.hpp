@@ -20,11 +20,16 @@ public:
     std::shared_ptr<IData> getData() override;
 
 private:
+    bool resolveInputLayout(size_t totalSize, size_t* freqBins, bool* isRealSpectrum) const;
+
     size_t m_fftSize = 1024;
     size_t m_windowSize = 0;
 
     std::shared_ptr<GpuFloatSignal> m_inData;
-    std::shared_ptr<GpuFloatSignal> m_outData;
+    size_t m_binsPerRow = 0;
+    size_t m_rows = 0;
+    size_t m_halfBins = 0;
+    size_t m_totalPairs = 0;
 };
 
 #endif

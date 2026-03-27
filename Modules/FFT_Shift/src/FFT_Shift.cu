@@ -7,19 +7,22 @@
 
 namespace {
 
-__global__ void fftShiftKernel(const float* in, float* out, size_t binsPerRow, size_t totalSize)
+__global__ void fftShiftInplaceKernel(float* data, size_t binsPerRow, size_t halfBins, size_t rows)
 {
-    const size_t idx = (blockIdx.x * blockDim.x) + threadIdx.x;
-    if (idx >= totalSize) {
+    const size_t pairIdx = (blockIdx.x * blockDim.x) + threadIdx.x;
+    const size_t totalPairs = rows * halfBins;
+    if (pairIdx >= totalPairs) {
         return;
     }
 
-    const size_t col = idx % binsPerRow;
-    const size_t rowStart = idx - col;
-    const size_t shift = binsPerRow / 2;
-    const size_t srcCol = (col + shift) % binsPerRow;
+    const size_t row = pairIdx / halfBins;
+    const size_t col = pairIdx % halfBins;
+    const size_t leftIdx = row * binsPerRow + col;
+    const size_t rightIdx = leftIdx + halfBins;
 
-    out[idx] = in[rowStart + srcCol];
+    const float tmp = data[leftIdx];
+    data[leftIdx] = data[rightIdx];
+    data[rightIdx] = tmp;
 }
 
 bool resolveFreqBins(size_t fftSize,
@@ -71,71 +74,33 @@ IModule* createModule() {
 }
 
 FFT_Shift::FFT_Shift()
-    : IModule({"FFT Shift", "FFT_Shift-module.so", "FFT_Shift.json"}) {}
+    : IModule({"FFT_Shift", "FFT_Shift-module.so", "FFT_Shift.json"}) {}
 
 bool FFT_Shift::init() {
+    if (m_fftSize == 0) {
+        ERROR << "FFT_Shift::init: fft size must be greater than zero." << std::endl;
+        return false;
+    }
+
+    if (m_windowSize > 0) {
+        const size_t realBins = (m_fftSize / 2) + 1;
+        const size_t complexBins = m_fftSize;
+        if (m_windowSize != realBins && m_windowSize != complexBins) {
+            ERROR << "FFT_Shift::init: window size must be " << realBins
+                  << " (real spectrum) or " << complexBins << " (complex spectrum)." << std::endl;
+            return false;
+        }
+    }
+
     return true;
 }
 
 bool FFT_Shift::run() {
-    if (!m_inData || !m_inData->isValid()) {
-        ERROR << "FFT_Shift::run: input data is null or invalid." << std::endl;
-        return false;
-    }
-
-    const size_t totalSize = m_inData->size();
-    if (totalSize == 0) {
-        ERROR << "FFT_Shift::run: input data size is zero." << std::endl;
-        return false;
-    }
-
-    if (m_fftSize == 0) {
-        ERROR << "FFT_Shift::run: fft size must be greater than zero." << std::endl;
-        return false;
-    }
-
-    size_t binsPerRow = 0;
-    bool isRealSpectrum = false;
-    if (!resolveFreqBins(m_fftSize, m_windowSize, totalSize, &binsPerRow, &isRealSpectrum)) {
-        ERROR << "FFT_Shift::run: failed to resolve spectrum width. "
-              << "Expected window size " << ((m_fftSize / 2) + 1)
-              << " (real) or " << m_fftSize << " (complex)." << std::endl;
-        return false;
-    }
-
-    if (isRealSpectrum) {
-        ERROR << "FFT_Shift::run: fft shift is supported only for full complex spectrum." << std::endl;
-        return false;
-    }
-
-    if ((totalSize % binsPerRow) != 0) {
-        ERROR << "FFT_Shift::run: input size (" << totalSize
-              << ") is not divisible by row width (" << binsPerRow << ")." << std::endl;
-        return false;
-    }
-
-    if (!m_outData || m_outData->availableSize() < totalSize) {
-        m_outData = std::make_shared<GpuFloatSignal>(totalSize);
-    }
-    if (!m_outData || !m_outData->isValid()) {
-        ERROR << "FFT_Shift::run: failed to allocate output buffer." << std::endl;
-        return false;
-    }
-    if (!m_outData->setLogicalSize(totalSize)) {
-        ERROR << "FFT_Shift::run: failed to set output logical size." << std::endl;
-        return false;
-    }
-
-    const float* inPtr = m_inData->getDeviceData();
-    float* outPtr = m_outData->getDeviceData();
-    if (!inPtr || !outPtr) {
-        ERROR << "FFT_Shift::run: null device pointer(s)." << std::endl;
-        return false;
-    }
+    float* dataPtr = m_inData->getDeviceData();
 
     constexpr int blockSize = 256;
-    const int gridSize = static_cast<int>((totalSize + blockSize - 1) / blockSize);
-    fftShiftKernel<<<gridSize, blockSize>>>(inPtr, outPtr, binsPerRow, totalSize);
+    const int gridSize = static_cast<int>((m_totalPairs + blockSize - 1) / blockSize);
+    fftShiftInplaceKernel<<<gridSize, blockSize>>>(dataPtr, m_binsPerRow, m_halfBins, m_rows);
 
     const auto launchErr = cudaGetLastError();
     if (launchErr != cudaSuccess) {
@@ -171,9 +136,49 @@ bool FFT_Shift::setData(std::shared_ptr<IData> data) {
         ERROR << "FFT_Shift::setData: input data is not a valid GpuFloatSignal." << std::endl;
         return false;
     }
+
+    const size_t totalSize = m_inData->size();
+    if (totalSize == 0) {
+        ERROR << "FFT_Shift::setData: input data size is zero." << std::endl;
+        return false;
+    }
+
+    size_t binsPerRow = 0;
+    bool isRealSpectrum = false;
+    if (!resolveInputLayout(totalSize, &binsPerRow, &isRealSpectrum)) {
+        ERROR << "FFT_Shift::setData: failed to resolve spectrum width for input size " << totalSize << "."
+              << std::endl;
+        return false;
+    }
+
+    if (isRealSpectrum) {
+        ERROR << "FFT_Shift::setData: fft shift is supported only for full complex spectrum." << std::endl;
+        return false;
+    }
+
+    if ((totalSize % binsPerRow) != 0) {
+        ERROR << "FFT_Shift::setData: input size (" << totalSize
+              << ") is not divisible by row width (" << binsPerRow << ")." << std::endl;
+        return false;
+    }
+
+    if ((binsPerRow % 2) != 0) {
+        ERROR << "FFT_Shift::setData: inplace fft shift requires even row width." << std::endl;
+        return false;
+    }
+
+    m_binsPerRow = binsPerRow;
+    m_rows = totalSize / binsPerRow;
+    m_halfBins = binsPerRow / 2;
+    m_totalPairs = m_rows * m_halfBins;
     return true;
 }
 
 std::shared_ptr<IData> FFT_Shift::getData() {
-    return m_outData;
+    return m_inData;
+}
+
+bool FFT_Shift::resolveInputLayout(size_t totalSize, size_t* freqBins, bool* isRealSpectrum) const
+{
+    return resolveFreqBins(m_fftSize, m_windowSize, totalSize, freqBins, isRealSpectrum);
 }
