@@ -1,4 +1,5 @@
 #include <cuda_runtime.h>
+#include <cuComplex.h>
 #include <vector>
 #include <cmath>
 #include <stdexcept>
@@ -64,17 +65,83 @@ __global__ void fir_inplace_kernel(
     data[gid] = acc;
 }
 
+__global__ void fir_inplace_complex_kernel(
+    cuComplex* data,
+    int N,
+    const cuComplex* history,
+    int M)
+{
+    extern __shared__ cuComplex s_data_complex[];
+
+    const int tid = threadIdx.x;
+    const int gid = blockIdx.x * blockDim.x + tid;
+    const int halo = M - 1;
+    const int base = blockIdx.x * blockDim.x;
+
+    if (gid < N) {
+        s_data_complex[tid + halo] = data[gid];
+    }
+
+    if (tid < halo) {
+        const int idx = base + tid - halo;
+        s_data_complex[tid] = (idx >= 0) ? data[idx] : history[halo + idx];
+    }
+
+    __syncthreads();
+
+    if (gid >= N) {
+        return;
+    }
+
+    float accRe = 0.0f;
+    float accIm = 0.0f;
+    const int half = M >> 1;
+
+    #pragma unroll 4
+    for (int k = 0; k < half; ++k) {
+        const cuComplex x1 = s_data_complex[tid + k];
+        const cuComplex x2 = s_data_complex[tid + M - 1 - k];
+        const float sumRe = x1.x + x2.x;
+        const float sumIm = x1.y + x2.y;
+
+        accRe += d_h[k] * sumRe;
+        accIm += d_h[k] * sumIm;
+    }
+
+    const cuComplex xc = s_data_complex[tid + half];
+    accRe += d_h[half] * xc.x;
+    accIm += d_h[half] * xc.y;
+
+    data[gid] = make_cuComplex(accRe, accIm);
+}
+
 bool FIRFilter::run(){
+    if (!m_data || m_signalType == SignalType::None) {
+        ERROR << "FIRFilter::run failed: input data is not set." << std::endl;
+        return false;
+    }
+
     const auto threads = 256;
     const auto blocks  = (m_data->size() + threads - 1) / threads;
 
-    const size_t shared = (threads + m_M - 1) * sizeof(float);
-
-    fir_inplace_kernel<<<blocks, threads, shared>>>(
-        m_data->getDeviceData(),
-        m_data->size(),
-        m_history.get(),
-        m_M);
+    if (m_signalType == SignalType::Float) {
+        const size_t shared = (threads + m_M - 1) * sizeof(float);
+        fir_inplace_kernel<<<blocks, threads, shared>>>(
+            m_floatData->getDeviceData(),
+            static_cast<int>(m_floatData->size()),
+            m_historyFloat.get(),
+            m_M);
+    } else if (m_signalType == SignalType::ComplexFloat) {
+        const size_t shared = (threads + m_M - 1) * sizeof(cuComplex);
+        fir_inplace_complex_kernel<<<blocks, threads, shared>>>(
+            m_complexData->getDeviceData(),
+            static_cast<int>(m_complexData->size()),
+            m_historyComplex.get(),
+            m_M);
+    } else {
+        ERROR << "FIRFilter::run failed: unsupported signal type." << std::endl;
+        return false;
+    }
 
     const auto launchErr = cudaGetLastError();
     if (launchErr != cudaSuccess) {
@@ -90,16 +157,30 @@ bool FIRFilter::run(){
         return true;
     }
 
-    const auto copyErr = cudaMemcpy(
-        m_history.get(),
-        m_next_history.get(),
-        historySize * sizeof(float),
-        cudaMemcpyDeviceToDevice
-    );
-    if (copyErr != cudaSuccess) {
-        ERROR << "FIRFilter::run failed: history update copy error: "
-              << cudaGetErrorString(copyErr) << std::endl;
-        return false;
+    if (m_signalType == SignalType::Float) {
+        const auto copyErr = cudaMemcpy(
+            m_historyFloat.get(),
+            m_nextHistoryFloat.get(),
+            historySize * sizeof(float),
+            cudaMemcpyDeviceToDevice
+        );
+        if (copyErr != cudaSuccess) {
+            ERROR << "FIRFilter::run failed: float history update copy error: "
+                  << cudaGetErrorString(copyErr) << std::endl;
+            return false;
+        }
+    } else {
+        const auto copyErr = cudaMemcpy(
+            m_historyComplex.get(),
+            m_nextHistoryComplex.get(),
+            historySize * sizeof(cuComplex),
+            cudaMemcpyDeviceToDevice
+        );
+        if (copyErr != cudaSuccess) {
+            ERROR << "FIRFilter::run failed: complex history update copy error: "
+                  << cudaGetErrorString(copyErr) << std::endl;
+            return false;
+        }
     }
 
     return true;

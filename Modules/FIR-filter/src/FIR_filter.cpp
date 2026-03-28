@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <cuda_runtime.h>
+#include <cuComplex.h>
 #include <module.hpp>
 
 // Внешние объявления, что бы не выносить в .hpp файлы
@@ -11,15 +12,53 @@ extern __constant__ float d_h[];
 
 namespace {
 constexpr int kMaxFIRLength = 2048;
+
+template<typename T>
+void cuda_free(T* ptr) {
+    if (ptr) {
+        cudaFree(ptr);
+    }
+}
+
+template<typename T>
+bool ensureHistoryBuffers(
+    const size_t historySize,
+    std::shared_ptr<T>& history,
+    std::shared_ptr<T>& nextHistory)
+{
+    if (historySize == 0) {
+        history.reset();
+        nextHistory.reset();
+        return true;
+    }
+
+    if (!history) {
+        T* ptr = nullptr;
+        if (cudaMalloc(&ptr, historySize * sizeof(T)) != cudaSuccess) {
+            return false;
+        }
+        history = std::shared_ptr<T>(ptr, cuda_free<T>);
+
+        if (cudaMemset(history.get(), 0, historySize * sizeof(T)) != cudaSuccess) {
+            history.reset();
+            return false;
+        }
+    }
+
+    if (!nextHistory) {
+        T* ptr = nullptr;
+        if (cudaMalloc(&ptr, historySize * sizeof(T)) != cudaSuccess) {
+            return false;
+        }
+        nextHistory = std::shared_ptr<T>(ptr, cuda_free<T>);
+    }
+
+    return true;
+}
 }
 
 IModule* createModule() {
     return new FIRFilter();
-}
-
-
-void cuda_free(float* ptr) {
-    if (ptr) cudaFree(ptr);
 }
 
 
@@ -63,29 +102,17 @@ bool FIRFilter::init()
     INFO << "coefs init" << std::endl;
 
     const size_t historySize = static_cast<size_t>(m_M - 1);
-    if (historySize == 0) {
-        m_history.reset();
-        m_next_history.reset();
-        return true;
-    }
+    (void)historySize;
 
-    float* ptr = nullptr;
-    if (cudaMalloc(&ptr, historySize * sizeof(float)) != cudaSuccess) {
-        ERROR << "FIRFilter::init failed: cudaMalloc for history failed." << std::endl;
-        return false;
-    }
-    m_history = std::shared_ptr<float>(ptr, cuda_free);
-    if (cudaMemset(m_history.get(), 0, historySize * sizeof(float)) != cudaSuccess) {
-        ERROR << "FIRFilter::init failed: cudaMemset for history failed." << std::endl;
-        return false;
-    }
+    m_signalType = SignalType::None;
+    m_data.reset();
+    m_floatData.reset();
+    m_complexData.reset();
 
-    float* nextHistoryPtr = nullptr;
-    if (cudaMalloc(&nextHistoryPtr, historySize * sizeof(float)) != cudaSuccess) {
-        ERROR << "FIRFilter::init failed: cudaMalloc for next history failed." << std::endl;
-        return false;
-    }
-    m_next_history = std::shared_ptr<float>(nextHistoryPtr, cuda_free);
+    m_historyFloat.reset();
+    m_nextHistoryFloat.reset();
+    m_historyComplex.reset();
+    m_nextHistoryComplex.reset();
 
     return true;
 }
@@ -101,34 +128,67 @@ bool FIRFilter::setData(std::shared_ptr<IData> data){
         return false;
     }
 
-    m_data = std::dynamic_pointer_cast<GpuFloatSignal>(data);
-    if(not m_data) {
+    m_floatData = std::dynamic_pointer_cast<GpuFloatSignal>(data);
+    m_complexData = std::dynamic_pointer_cast<GpuComplexFloatSignal>(data);
+    if (!m_floatData && !m_complexData) {
         ERROR << "Can't handle:" << data->getDataName() << std::endl;
         return false;
     }
 
     const size_t historySize = static_cast<size_t>(m_M - 1);
-    if (m_data->size() < historySize) {
+    const size_t inputSize = m_floatData ? m_floatData->size() : m_complexData->size();
+    if (inputSize < historySize) {
         ERROR << "FIRFilter::setData failed: input size is smaller than history size." << std::endl;
         return false;
     }
 
+    m_data = data;
+
     if (historySize == 0) {
+        m_signalType = m_floatData ? SignalType::Float : SignalType::ComplexFloat;
         return true;
     }
 
+    if (m_floatData) {
+        if (!ensureHistoryBuffers(historySize, m_historyFloat, m_nextHistoryFloat)) {
+            ERROR << "FIRFilter::setData failed: unable to allocate float history buffers." << std::endl;
+            return false;
+        }
+
+        const auto err = cudaMemcpy(
+            m_nextHistoryFloat.get(),
+            m_floatData->getDeviceData() + m_floatData->size() - historySize,
+            historySize * sizeof(float),
+            cudaMemcpyDeviceToDevice
+        );
+        if (err != cudaSuccess) {
+            ERROR << "FIRFilter::setData failed: cudaMemcpy next float history failed: "
+                  << cudaGetErrorString(err) << std::endl;
+            return false;
+        }
+
+        m_signalType = SignalType::Float;
+        return true;
+    }
+
+    if (!ensureHistoryBuffers(historySize, m_historyComplex, m_nextHistoryComplex)) {
+        ERROR << "FIRFilter::setData failed: unable to allocate complex history buffers." << std::endl;
+        return false;
+    }
+
     const auto err = cudaMemcpy(
-        m_next_history.get(),
-        m_data->getDeviceData() + m_data->size() - historySize,
-        historySize * sizeof(float),
+        m_nextHistoryComplex.get(),
+        m_complexData->getDeviceData() + m_complexData->size() - historySize,
+        historySize * sizeof(cuComplex),
         cudaMemcpyDeviceToDevice
     );
     if (err != cudaSuccess) {
-        ERROR << "FIRFilter::setData failed: cudaMemcpy next history failed: "
+        ERROR << "FIRFilter::setData failed: cudaMemcpy next complex history failed: "
               << cudaGetErrorString(err) << std::endl;
         return false;
     }
 
+    m_signalType = SignalType::ComplexFloat;
     return true;
 }
 
