@@ -56,6 +56,28 @@ bool resolveFreqBins(size_t fftSize,
     return false;
 }
 
+cv::Vec3b colorizeLevel(float normalized)
+{
+    const float t = std::clamp(normalized, 0.0f, 1.0f);
+    const float gammaCorrected = std::pow(t, 0.8f);
+    const unsigned char level = static_cast<unsigned char>(
+        std::round(gammaCorrected * 255.0f));
+    cv::Mat gray(1, 1, CV_8UC1, cv::Scalar(level));
+    cv::Mat colored;
+    cv::applyColorMap(gray, colored, cv::COLORMAP_PLASMA);
+    return colored.at<cv::Vec3b>(0, 0);
+}
+
+cv::Vec3b maskedBackground(float normalized)
+{
+    const float t = std::clamp(normalized, 0.0f, 1.0f);
+    const float base = std::pow(t, 1.6f);
+    const unsigned char b = static_cast<unsigned char>(std::round(18.0f + 24.0f * base));
+    const unsigned char g = static_cast<unsigned char>(std::round(6.0f + 10.0f * base));
+    const unsigned char r = static_cast<unsigned char>(std::round(16.0f + 28.0f * base));
+    return cv::Vec3b(b, g, r);
+}
+
 } // namespace
 
 IModule* createModule() {
@@ -144,6 +166,10 @@ bool SpectrogramPlot::run() {
         maxValue = *maxIt;
     }
     const float range = std::max(maxValue - minValue, 1.0e-12f);
+    INFO << "SpectrogramPlot::run: dB range in frame min=" << minValue
+         << ", max=" << maxValue
+         << (m_hasMaskBelowDb ? (", mask below=" + std::to_string(m_maskBelowDb)) : "")
+         << std::endl;
 
     cv::Mat image(static_cast<int>(rows), static_cast<int>(m_freqBins), CV_8UC3);
 
@@ -152,12 +178,11 @@ bool SpectrogramPlot::run() {
         for (size_t x = 0; x < m_freqBins; ++x) {
             const float raw = hostBuffer[(y * m_freqBins) + x];
             const float normalized = std::clamp((raw - minValue) / range, 0.0f, 1.0f);
-
-            const unsigned char r = static_cast<unsigned char>(std::round(255.0f * normalized));
-            const unsigned char g = static_cast<unsigned char>(std::round(255.0f * normalized * normalized));
-            const unsigned char b = static_cast<unsigned char>(std::round(255.0f * (1.0f - normalized)));
-
-            image.at<cv::Vec3b>(static_cast<int>(dstY), static_cast<int>(x)) = cv::Vec3b(b, g, r);
+            if (m_hasMaskBelowDb && raw < static_cast<float>(m_maskBelowDb)) {
+                image.at<cv::Vec3b>(static_cast<int>(dstY), static_cast<int>(x)) = maskedBackground(normalized);
+                continue;
+            }
+            image.at<cv::Vec3b>(static_cast<int>(dstY), static_cast<int>(x)) = colorizeLevel(normalized);
         }
     }
 
@@ -168,13 +193,13 @@ bool SpectrogramPlot::run() {
     const int canvasWidth = leftMargin + static_cast<int>(m_freqBins) + rightMargin;
     const int canvasHeight = topMargin + static_cast<int>(rows) + bottomMargin;
 
-    cv::Mat canvas(canvasHeight, canvasWidth, CV_8UC3, cv::Scalar(255, 255, 255));
+    cv::Mat canvas(canvasHeight, canvasWidth, CV_8UC3, cv::Scalar(250, 247, 242));
     image.copyTo(canvas(cv::Rect(leftMargin, topMargin, image.cols, image.rows)));
 
     const int font = cv::FONT_HERSHEY_SIMPLEX;
     const double fontScale = 0.4;
     const int thickness = 1;
-    const cv::Scalar color(0, 0, 0);
+    const cv::Scalar color(32, 24, 18);
 
     double freqMin = 0.0;
     double freqMax = 0.0;
@@ -276,6 +301,12 @@ void SpectrogramPlot::setParam(const std::string& paramName, const std::any& val
     if (paramName == "db max") {
         m_dbMax = std::any_cast<double>(resolved);
         m_hasDbRange = true;
+        return;
+    }
+
+    if (paramName == "mask below db") {
+        m_maskBelowDb = std::any_cast<double>(resolved);
+        m_hasMaskBelowDb = true;
         return;
     }
 

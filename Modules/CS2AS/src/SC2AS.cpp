@@ -8,7 +8,7 @@
 #include <module.hpp>
 
 namespace {
-__global__ void complexToAmplitudeKernel(const cuComplex* in, float* out, size_t n) {
+__global__ void complexToAmplitudeKernel(const cuComplex* in, float* out, size_t n, float powerNorm) {
     const size_t i = (blockIdx.x * blockDim.x) + threadIdx.x;
     if (i >= n) {
         return;
@@ -16,7 +16,7 @@ __global__ void complexToAmplitudeKernel(const cuComplex* in, float* out, size_t
 
     const float re = cuCrealf(in[i]);
     const float im = cuCimagf(in[i]);
-    const float power = (re * re) + (im * im);
+    const float power = ((re * re) + (im * im)) * powerNorm;
     out[i] = 10.0 * __log10f(fmaxf(power, 1.0e-20f));
 }
 }
@@ -62,9 +62,15 @@ bool CS2AS::run() {
         return false;
     }
 
+    float powerNorm = 1.0f;
+    if (m_normalizeByFftSize) {
+        const float fftNorm = static_cast<float>(m_fftSize > 0 ? m_fftSize : 1);
+        powerNorm = 1.0f / (fftNorm * fftNorm);
+    }
+
     constexpr int blockSize = 256;
     const int gridSize = static_cast<int>((inSize + blockSize - 1) / blockSize);
-    complexToAmplitudeKernel<<<gridSize, blockSize>>>(inPtr, outPtr, inSize);
+    complexToAmplitudeKernel<<<gridSize, blockSize>>>(inPtr, outPtr, inSize, powerNorm);
 
     const auto launchErr = cudaGetLastError();
     if (launchErr != cudaSuccess) {
@@ -83,8 +89,15 @@ bool CS2AS::run() {
 
 void CS2AS::setParam(const std::string& paramName, const std::any& value) {
     const std::any resolved = resolveParamValue(value);
-    (void)paramName;
-    (void)resolved;
+    if (paramName == "fft size") {
+        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(resolved));
+        return;
+    }
+
+    if (paramName == "normalize by fft size") {
+        m_normalizeByFftSize = std::any_cast<bool>(resolved);
+        return;
+    }
 }
 
 bool CS2AS::setData(std::shared_ptr<IData> data) {

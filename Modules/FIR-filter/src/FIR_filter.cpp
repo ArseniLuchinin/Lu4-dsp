@@ -1,28 +1,22 @@
 #include <FIR_filter.hpp>
 #include <VariablesResolve.hpp>
+
+#include <CpuComplexSignal.hpp>
 #include <CpuFloatSignal.hpp>
 #include <GpuSignalUtils.hpp>
 
 #include <cstdint>
 #include <cstddef>
+#include <string>
+
 #include <cuda_runtime.h>
-#include <cuComplex.h>
 #include <module.hpp>
-
-// Внешние объявления, что бы не выносить в .hpp файлы
-extern __constant__ float d_h[];
-
-namespace {
-constexpr int kMaxFIRLength = 2048;
-}
 
 IModule* createModule() {
     return new FIRFilter();
 }
 
-
 FIRFilter::FIRFilter() : IModule({"FIR-filter", "", ""}) {}
-
 
 bool FIRFilter::init()
 {
@@ -31,37 +25,74 @@ bool FIRFilter::init()
         return false;
     }
 
-    if (m_M > kMaxFIRLength) {
-        ERROR << "FIRFilter::init failed: filter order exceeds max constant-memory taps." << std::endl;
+    std::shared_ptr<IData> rxBase = rxData();
+    if (!rxBase) {
+        ERROR << "FIRFilter::init failed: coefficients source is nullptr." << std::endl;
         return false;
     }
 
-    std::shared_ptr<CpuFloatSignal> rx = std::dynamic_pointer_cast<CpuFloatSignal>(rxData());
-    if (!rx) {
-        ERROR << "FIRFilter::init failed: coefficients source is not CpuFloatSignal." << std::endl;
+    auto realTaps = std::dynamic_pointer_cast<CpuFloatSignal>(rxBase);
+    auto complexTaps = std::dynamic_pointer_cast<CpuComplexSignal>(rxBase);
+
+    if (!realTaps && !complexTaps) {
+        ERROR << "FIRFilter::init failed: coefficients source must be CpuFloatSignal or CpuComplexSignal." << std::endl;
         return false;
     }
-    if (!rx->isValid()) {
-        ERROR << "FIRFilter::init failed: coefficients data is invalid." << std::endl;
+
+    if (realTaps && !realTaps->isValid()) {
+        ERROR << "FIRFilter::init failed: real coefficients data is invalid." << std::endl;
         return false;
     }
-    if (rx->size() != static_cast<size_t>(m_M)) {
+    if (complexTaps && !complexTaps->isValid()) {
+        ERROR << "FIRFilter::init failed: complex coefficients data is invalid." << std::endl;
+        return false;
+    }
+
+    const size_t tapsSize = realTaps ? realTaps->size() : complexTaps->size();
+    if (tapsSize != static_cast<size_t>(m_M)) {
         ERROR << "FIRFilter::init failed: coefficients size must match filter order." << std::endl;
         return false;
     }
 
-    INFO << "rx: " << rx->getDataName() << " size: " << rx->size() << std::endl;
+    if (realTaps) {
+        if (m_coefficientsTypeMode == CoefficientsTypeMode::Complex) {
+            ERROR << "FIRFilter::init failed: coefficients type mode is 'complex', but real taps were provided." << std::endl;
+            return false;
+        }
 
-    // Копируем в constant memory
-    const auto err = cudaMemcpyToSymbol(d_h, rx->getData(), m_M * sizeof(float));
-    if(err != cudaSuccess){
-        ERROR << "coefs load failed: " << cudaGetErrorString(err) << std::endl;
-        return false;
+        m_realTaps = std::make_shared<GpuFloatSignal>(tapsSize);
+        if (!m_realTaps || !m_realTaps->isValid()) {
+            ERROR << "FIRFilter::init failed: unable to allocate GPU real taps." << std::endl;
+            return false;
+        }
+        m_realTaps->setDataFromHost(realTaps->getData(), tapsSize);
+        if (!m_realTaps->isValid()) {
+            ERROR << "FIRFilter::init failed: unable to upload real taps to GPU." << std::endl;
+            return false;
+        }
+
+        m_complexTaps.reset();
+        m_tapType = TapType::Real;
+    } else {
+        if (m_coefficientsTypeMode == CoefficientsTypeMode::Real) {
+            ERROR << "FIRFilter::init failed: coefficients type mode is 'real', but complex taps were provided." << std::endl;
+            return false;
+        }
+
+        m_complexTaps = std::make_shared<GpuComplexFloatSignal>(tapsSize);
+        if (!m_complexTaps || !m_complexTaps->isValid()) {
+            ERROR << "FIRFilter::init failed: unable to allocate GPU complex taps." << std::endl;
+            return false;
+        }
+        m_complexTaps->setDataFromHost(complexTaps->getData(), tapsSize);
+        if (!m_complexTaps->isValid()) {
+            ERROR << "FIRFilter::init failed: unable to upload complex taps to GPU." << std::endl;
+            return false;
+        }
+
+        m_realTaps.reset();
+        m_tapType = TapType::Complex;
     }
-    INFO << "coefs init" << std::endl;
-
-    const size_t historySize = static_cast<size_t>(m_M - 1);
-    (void)historySize;
 
     m_data.reset();
     m_gpuData.reset();
@@ -69,12 +100,19 @@ bool FIRFilter::init()
     m_historyData.reset();
     m_nextHistoryData.reset();
 
+    INFO << "FIRFilter::init: taps initialized, order=" << m_M
+         << ", tap type=" << (m_tapType == TapType::Real ? "real" : "complex") << std::endl;
     return true;
 }
 
 bool FIRFilter::setData(std::shared_ptr<IData> data){
     if (m_M <= 0) {
         ERROR << "FIRFilter::setData failed: filter order is not initialized." << std::endl;
+        return false;
+    }
+
+    if (m_tapType == TapType::None) {
+        ERROR << "FIRFilter::setData failed: taps are not initialized." << std::endl;
         return false;
     }
 
@@ -91,6 +129,11 @@ bool FIRFilter::setData(std::shared_ptr<IData> data){
 
     m_gpuData = validation.signal;
     m_data = data;
+
+    if (m_tapType == TapType::Complex && m_gpuData->sampleType() != GpuSampleType::ComplexFloat32) {
+        ERROR << "FIRFilter::setData failed: complex taps require complex input signal." << std::endl;
+        return false;
+    }
 
     const bool needWorkRecreate =
         !m_workData ||
@@ -154,9 +197,33 @@ void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
         return;
     }
 
+    if (paramName == "coefficients type") {
+        const auto modeStr = std::any_cast<std::string>(resolved);
+        if (modeStr == "auto") {
+            m_coefficientsTypeMode = CoefficientsTypeMode::Auto;
+            return;
+        }
+        if (modeStr == "real") {
+            m_coefficientsTypeMode = CoefficientsTypeMode::Real;
+            return;
+        }
+        if (modeStr == "complex") {
+            m_coefficientsTypeMode = CoefficientsTypeMode::Complex;
+            return;
+        }
+        {
+            ERROR << "FIRFilter::setParam failed: unknown coefficients type '" << modeStr << "'." << std::endl;
+        }
+        return;
+    }
+
+    if (paramName == "log energy") {
+        m_logEnergy = std::any_cast<bool>(resolved);
+        return;
+    }
+
     ERROR << "can't handle param: " << paramName << std::endl;
 }
-
 
 std::shared_ptr<IData> FIRFilter::getData()
 {

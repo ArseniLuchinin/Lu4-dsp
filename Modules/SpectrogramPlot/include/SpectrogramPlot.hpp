@@ -35,6 +35,8 @@ private:
     bool m_hasDbRange = false;
     double m_dbMin = 0.0;
     double m_dbMax = 0.0;
+    bool m_hasMaskBelowDb = false;
+    double m_maskBelowDb = -120.0;
 
     bool m_isShow = true;
     std::string m_savePath;

@@ -5,6 +5,7 @@
 #include <GpuComplexSignal.hpp>
 #include <GpuFloatSignal.hpp>
 
+#include <cstddef>
 
 class CS2AS : public IModule {
 public:
@@ -20,6 +21,8 @@ public:
     std::shared_ptr<IData> getData() override;
 
 private:
+    size_t m_fftSize = 1;
+    bool m_normalizeByFftSize = true;
     std::shared_ptr<GpuComplexFloatSignal> m_inData;
     std::shared_ptr<GpuFloatSignal> m_outData;
 };

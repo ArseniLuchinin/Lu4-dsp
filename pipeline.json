@@ -5,13 +5,12 @@
       "name": "FIR coefficients conveyor",
       "modules": [
         {
-          "name": "BandPassCompute",
+          "name": "BandPassComputeComplex",
           "params": {
             "sample rate": "$SAMPLE_RATE",
-            "filter order": 129,
-            "block size": "$MAX_SIZE",
-            "low cutoff": 80000.0,
-            "high cutoff": 110000.0
+            "filter order": 8191,
+            "low cutoff":  -200000.0,
+            "high cutoff":  250000.0
           }
         },
         {
@@ -32,7 +31,11 @@
           }
         },
         {
-          "name": "CS2AS"
+          "name": "CS2AS",
+          "params": {
+            "fft size": "$FFT_SIZE",
+            "normalize by fft size": true
+          }
         },
         {
           "name": "FFT_Shift",
@@ -51,7 +54,10 @@
             "centered spectrum": true,
             "freq min": -1048576.0,
             "freq max": 1048576.0,
-            "save path": "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogramm"
+            "db min": -120.0,
+            "db max": -10.0,
+            "mask below db" : -10.0,
+            "save path": "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogramm_filtered_"
           }
         }
       ]
@@ -71,7 +77,9 @@
           "name": "FIR-filter",
           "params": {
             "coefficients data tag": "fir_bandpass_coeff",
-            "filter order": 129
+            "filter order": 8191,
+            "coefficients type": "auto",
+            "log energy": true
           }
         },
         {
