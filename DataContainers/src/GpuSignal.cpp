@@ -3,10 +3,10 @@
 #include <cuda_runtime.h>
 
 template<typename T, typename Tag>
-GpuSignal<T, Tag>::GpuSignal() : IData(name()) {}
+GpuSignal<T, Tag>::GpuSignal() : IGpuSignalData(name()) {}
 
 template<typename T, typename Tag>
-GpuSignal<T, Tag>::GpuSignal(size_t size) : IData(name()), m_size(size) {
+GpuSignal<T, Tag>::GpuSignal(size_t size) : IGpuSignalData(name()), m_size(size) {
     const auto err = cudaMalloc((void**)&m_data, sizeof(T) * m_size);
     if (err != cudaSuccess) {
         ERROR << "Failed to reserve memory on GPU: " << m_size << std::endl;
@@ -21,7 +21,7 @@ GpuSignal<T, Tag>::GpuSignal(size_t size) : IData(name()), m_size(size) {
 }
 
 template<typename T, typename Tag>
-GpuSignal<T, Tag>::GpuSignal(GpuSignal&& other) noexcept : IData(name()) {
+GpuSignal<T, Tag>::GpuSignal(GpuSignal&& other) noexcept : IGpuSignalData(name()) {
     m_size = other.m_size;
     m_resedSize = other.m_resedSize;
     m_siValid = other.m_siValid;
@@ -158,6 +158,31 @@ bool GpuSignal<T, Tag>::isValid() const {
 template<typename T, typename Tag>
 T* GpuSignal<T, Tag>::getDeviceData() {
     return m_data;
+}
+
+template<typename T, typename Tag>
+const T* GpuSignal<T, Tag>::getDeviceData() const {
+    return m_data;
+}
+
+template<typename T, typename Tag>
+GpuSampleType GpuSignal<T, Tag>::sampleType() const {
+    return GpuSampleTypeTraits<T>::value;
+}
+
+template<typename T, typename Tag>
+void* GpuSignal<T, Tag>::deviceDataRaw() {
+    return m_data;
+}
+
+template<typename T, typename Tag>
+const void* GpuSignal<T, Tag>::deviceDataRaw() const {
+    return m_data;
+}
+
+template<typename T, typename Tag>
+size_t GpuSignal<T, Tag>::elementSizeBytes() const {
+    return sizeof(T);
 }
 
 template<typename T, typename Tag>

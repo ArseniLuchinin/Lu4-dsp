@@ -4,6 +4,7 @@
 #include <IModule.hpp>
 #include <IData.hpp>
 #include <IVirtualRX.hpp>
+#include <IGpuSignalData.hpp>
 
 #include <GpuFloatSignal.hpp>
 #include <GpuComplexSignal.hpp>
@@ -23,25 +24,13 @@ public:
     void setParam(const std::string& paramName, const std::any& value) override;
 
 private:
-    enum class SignalType {
-        None,
-        Float,
-        ComplexFloat
-    };
-
-    int   m_M;
-    int   m_blockSize;
-    SignalType m_signalType = SignalType::None;
+    int   m_M = 0;
+    int   m_blockSize = 0;
 
     std::shared_ptr<IData> m_data;
-    std::shared_ptr<GpuFloatSignal> m_floatData;
-    std::shared_ptr<GpuComplexFloatSignal> m_complexData;
-
-    std::shared_ptr<float> m_historyFloat;
-    std::shared_ptr<float> m_nextHistoryFloat;
-
-    std::shared_ptr<cuComplex> m_historyComplex;
-    std::shared_ptr<cuComplex> m_nextHistoryComplex;
+    std::shared_ptr<IGpuSignalData> m_gpuData;
+    std::shared_ptr<IGpuSignalData> m_historyData;
+    std::shared_ptr<IGpuSignalData> m_nextHistoryData;
 };
 
 #endif

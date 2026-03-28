@@ -1,8 +1,10 @@
 #include <FIR_filter.hpp>
 #include <VariablesResolve.hpp>
 #include <CpuFloatSignal.hpp>
+#include <GpuSignalUtils.hpp>
 
 #include <cstdint>
+#include <cstddef>
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 #include <module.hpp>
@@ -12,49 +14,6 @@ extern __constant__ float d_h[];
 
 namespace {
 constexpr int kMaxFIRLength = 2048;
-
-template<typename T>
-void cuda_free(T* ptr) {
-    if (ptr) {
-        cudaFree(ptr);
-    }
-}
-
-template<typename T>
-bool ensureHistoryBuffers(
-    const size_t historySize,
-    std::shared_ptr<T>& history,
-    std::shared_ptr<T>& nextHistory)
-{
-    if (historySize == 0) {
-        history.reset();
-        nextHistory.reset();
-        return true;
-    }
-
-    if (!history) {
-        T* ptr = nullptr;
-        if (cudaMalloc(&ptr, historySize * sizeof(T)) != cudaSuccess) {
-            return false;
-        }
-        history = std::shared_ptr<T>(ptr, cuda_free<T>);
-
-        if (cudaMemset(history.get(), 0, historySize * sizeof(T)) != cudaSuccess) {
-            history.reset();
-            return false;
-        }
-    }
-
-    if (!nextHistory) {
-        T* ptr = nullptr;
-        if (cudaMalloc(&ptr, historySize * sizeof(T)) != cudaSuccess) {
-            return false;
-        }
-        nextHistory = std::shared_ptr<T>(ptr, cuda_free<T>);
-    }
-
-    return true;
-}
 }
 
 IModule* createModule() {
@@ -104,91 +63,65 @@ bool FIRFilter::init()
     const size_t historySize = static_cast<size_t>(m_M - 1);
     (void)historySize;
 
-    m_signalType = SignalType::None;
     m_data.reset();
-    m_floatData.reset();
-    m_complexData.reset();
-
-    m_historyFloat.reset();
-    m_nextHistoryFloat.reset();
-    m_historyComplex.reset();
-    m_nextHistoryComplex.reset();
+    m_gpuData.reset();
+    m_historyData.reset();
+    m_nextHistoryData.reset();
 
     return true;
 }
 
 bool FIRFilter::setData(std::shared_ptr<IData> data){
-    if (!data) {
-        ERROR << "Input data is nullptr." << std::endl;
-        return false;
-    }
-
     if (m_M <= 0) {
         ERROR << "FIRFilter::setData failed: filter order is not initialized." << std::endl;
         return false;
     }
 
-    m_floatData = std::dynamic_pointer_cast<GpuFloatSignal>(data);
-    m_complexData = std::dynamic_pointer_cast<GpuComplexFloatSignal>(data);
-    if (!m_floatData && !m_complexData) {
-        ERROR << "Can't handle:" << data->getDataName() << std::endl;
-        return false;
-    }
-
     const size_t historySize = static_cast<size_t>(m_M - 1);
-    const size_t inputSize = m_floatData ? m_floatData->size() : m_complexData->size();
-    if (inputSize < historySize) {
-        ERROR << "FIRFilter::setData failed: input size is smaller than history size." << std::endl;
+    auto validation = validateGpuInput(
+        data,
+        {GpuSampleType::Float32, GpuSampleType::ComplexFloat32},
+        historySize,
+        "FIRFilter::setData");
+    if (!validation.ok) {
+        ERROR << validation.error << std::endl;
         return false;
     }
 
+    m_gpuData = validation.signal;
     m_data = data;
 
-    if (historySize == 0) {
-        m_signalType = m_floatData ? SignalType::Float : SignalType::ComplexFloat;
-        return true;
-    }
-
-    if (m_floatData) {
-        if (!ensureHistoryBuffers(historySize, m_historyFloat, m_nextHistoryFloat)) {
-            ERROR << "FIRFilter::setData failed: unable to allocate float history buffers." << std::endl;
-            return false;
-        }
-
-        const auto err = cudaMemcpy(
-            m_nextHistoryFloat.get(),
-            m_floatData->getDeviceData() + m_floatData->size() - historySize,
-            historySize * sizeof(float),
-            cudaMemcpyDeviceToDevice
-        );
-        if (err != cudaSuccess) {
-            ERROR << "FIRFilter::setData failed: cudaMemcpy next float history failed: "
-                  << cudaGetErrorString(err) << std::endl;
-            return false;
-        }
-
-        m_signalType = SignalType::Float;
-        return true;
-    }
-
-    if (!ensureHistoryBuffers(historySize, m_historyComplex, m_nextHistoryComplex)) {
-        ERROR << "FIRFilter::setData failed: unable to allocate complex history buffers." << std::endl;
+    auto historyValidation = ensureHistoryLike(
+        *m_gpuData, historySize, m_historyData, m_nextHistoryData);
+    if (!historyValidation.ok) {
+        ERROR << "FIRFilter::setData failed: " << historyValidation.error << std::endl;
         return false;
     }
 
+    if (historySize == 0) {
+        return true;
+    }
+
+    const auto elementSize = m_gpuData->elementSizeBytes();
+    const auto offsetBytes = (m_gpuData->size() - historySize) * elementSize;
+    const auto totalBytes = historySize * elementSize;
+
+    const auto* inputBytes =
+        static_cast<const std::byte*>(m_gpuData->deviceDataRaw());
+    auto* nextHistoryBytes =
+        static_cast<std::byte*>(m_nextHistoryData->deviceDataRaw());
     const auto err = cudaMemcpy(
-        m_nextHistoryComplex.get(),
-        m_complexData->getDeviceData() + m_complexData->size() - historySize,
-        historySize * sizeof(cuComplex),
+        nextHistoryBytes,
+        inputBytes + offsetBytes,
+        totalBytes,
         cudaMemcpyDeviceToDevice
     );
     if (err != cudaSuccess) {
-        ERROR << "FIRFilter::setData failed: cudaMemcpy next complex history failed: "
+        ERROR << "FIRFilter::setData failed: cudaMemcpy next history failed: "
               << cudaGetErrorString(err) << std::endl;
         return false;
     }
 
-    m_signalType = SignalType::ComplexFloat;
     return true;
 }
 

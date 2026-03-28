@@ -1,12 +1,26 @@
 #ifndef GPU_SIGNAL_HPP
 #define GPU_SIGNAL_HPP
 
-#include <IData.hpp>
+#include <IGpuSignalData.hpp>
 
 #include <cstddef>
+#include <cuComplex.h>
+
+template<typename T>
+struct GpuSampleTypeTraits;
+
+template<>
+struct GpuSampleTypeTraits<float> {
+    static constexpr GpuSampleType value = GpuSampleType::Float32;
+};
+
+template<>
+struct GpuSampleTypeTraits<cuComplex> {
+    static constexpr GpuSampleType value = GpuSampleType::ComplexFloat32;
+};
 
 template<typename T, typename Tag>
-class GpuSignal : public IData {
+class GpuSignal : public IGpuSignalData {
 public:
     GpuSignal(const GpuSignal&) = delete;
     GpuSignal& operator=(const GpuSignal&) = delete;
@@ -20,13 +34,19 @@ public:
     bool reserve(const size_t size) override;
     void setDataFromHost(T* data, size_t size);
     void setDataFromDevice(T* data, size_t size);
-    bool setLogicalSize(size_t size);
+    bool setLogicalSize(size_t size) override;
 
     size_t size() const override;
     size_t availableSize() const override;
     bool isValid() const override;
 
+    GpuSampleType sampleType() const override;
+    void* deviceDataRaw() override;
+    const void* deviceDataRaw() const override;
+    size_t elementSizeBytes() const override;
+
     T* getDeviceData();
+    const T* getDeviceData() const;
 
     const char* name() const;
 

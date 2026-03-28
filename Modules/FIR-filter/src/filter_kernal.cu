@@ -116,27 +116,41 @@ __global__ void fir_inplace_complex_kernel(
 }
 
 bool FIRFilter::run(){
-    if (!m_data || m_signalType == SignalType::None) {
+    if (!m_data || !m_gpuData) {
         ERROR << "FIRFilter::run failed: input data is not set." << std::endl;
         return false;
     }
 
     const auto threads = 256;
-    const auto blocks  = (m_data->size() + threads - 1) / threads;
+    const auto blocks  = (m_gpuData->size() + threads - 1) / threads;
 
-    if (m_signalType == SignalType::Float) {
+    if (m_gpuData->sampleType() == GpuSampleType::Float32) {
+        auto floatData = std::dynamic_pointer_cast<GpuFloatSignal>(m_gpuData);
+        auto history = std::dynamic_pointer_cast<GpuFloatSignal>(m_historyData);
+        if (!floatData || !history) {
+            ERROR << "FIRFilter::run failed: invalid typed buffers for float signal." << std::endl;
+            return false;
+        }
+
         const size_t shared = (threads + m_M - 1) * sizeof(float);
         fir_inplace_kernel<<<blocks, threads, shared>>>(
-            m_floatData->getDeviceData(),
-            static_cast<int>(m_floatData->size()),
-            m_historyFloat.get(),
+            floatData->getDeviceData(),
+            static_cast<int>(floatData->size()),
+            history->getDeviceData(),
             m_M);
-    } else if (m_signalType == SignalType::ComplexFloat) {
+    } else if (m_gpuData->sampleType() == GpuSampleType::ComplexFloat32) {
+        auto complexData = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_gpuData);
+        auto history = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_historyData);
+        if (!complexData || !history) {
+            ERROR << "FIRFilter::run failed: invalid typed buffers for complex signal." << std::endl;
+            return false;
+        }
+
         const size_t shared = (threads + m_M - 1) * sizeof(cuComplex);
         fir_inplace_complex_kernel<<<blocks, threads, shared>>>(
-            m_complexData->getDeviceData(),
-            static_cast<int>(m_complexData->size()),
-            m_historyComplex.get(),
+            complexData->getDeviceData(),
+            static_cast<int>(complexData->size()),
+            history->getDeviceData(),
             m_M);
     } else {
         ERROR << "FIRFilter::run failed: unsupported signal type." << std::endl;
@@ -157,30 +171,21 @@ bool FIRFilter::run(){
         return true;
     }
 
-    if (m_signalType == SignalType::Float) {
-        const auto copyErr = cudaMemcpy(
-            m_historyFloat.get(),
-            m_nextHistoryFloat.get(),
-            historySize * sizeof(float),
-            cudaMemcpyDeviceToDevice
-        );
-        if (copyErr != cudaSuccess) {
-            ERROR << "FIRFilter::run failed: float history update copy error: "
-                  << cudaGetErrorString(copyErr) << std::endl;
-            return false;
-        }
-    } else {
-        const auto copyErr = cudaMemcpy(
-            m_historyComplex.get(),
-            m_nextHistoryComplex.get(),
-            historySize * sizeof(cuComplex),
-            cudaMemcpyDeviceToDevice
-        );
-        if (copyErr != cudaSuccess) {
-            ERROR << "FIRFilter::run failed: complex history update copy error: "
-                  << cudaGetErrorString(copyErr) << std::endl;
-            return false;
-        }
+    if (!m_historyData || !m_nextHistoryData) {
+        ERROR << "FIRFilter::run failed: history buffers are not initialized." << std::endl;
+        return false;
+    }
+
+    const auto copyErr = cudaMemcpy(
+        m_historyData->deviceDataRaw(),
+        m_nextHistoryData->deviceDataRaw(),
+        historySize * m_gpuData->elementSizeBytes(),
+        cudaMemcpyDeviceToDevice
+    );
+    if (copyErr != cudaSuccess) {
+        ERROR << "FIRFilter::run failed: history update copy error: "
+              << cudaGetErrorString(copyErr) << std::endl;
+        return false;
     }
 
     return true;
