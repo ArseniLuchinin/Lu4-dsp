@@ -3,10 +3,10 @@
 
 #include <module.hpp>
 #include <CpuFloatSignal.hpp>
-#include <GpuFloatSignal.hpp>
+#include <EmptyContainer.hpp>
 
 #include <cmath>
-#include <vector>
+#include <memory>
 
 IModule* createModule() {
     return new BandPassCompute();
@@ -24,8 +24,28 @@ BandPassCompute::BandPassCompute()
 BandPassCompute::~BandPassCompute() = default;
 
 bool BandPassCompute::init() {
+    if (m_sampleRate <= 0.0f) {
+        ERROR << "BandPassCompute::init failed: sample rate must be > 0." << std::endl;
+        return false;
+    }
 
-    auto m_coeff = new float[m_filterOrder];
+    if (m_filterOrder <= 0 || (m_filterOrder % 2) == 0) {
+        ERROR << "BandPassCompute::init failed: filter order must be positive odd number." << std::endl;
+        return false;
+    }
+
+    if (m_lowCutoff < 0.0f || m_highCutoff <= m_lowCutoff) {
+        ERROR << "BandPassCompute::init failed: cutoff range is invalid." << std::endl;
+        return false;
+    }
+
+    const float nyquist = m_sampleRate * 0.5f;
+    if (m_highCutoff >= nyquist) {
+        ERROR << "BandPassCompute::init failed: high cutoff must be less than Nyquist frequency." << std::endl;
+        return false;
+    }
+
+    auto coeff = std::make_unique<float[]>(m_filterOrder);
 
     float f1 = m_lowCutoff / m_sampleRate;
     float f2 = m_highCutoff / m_sampleRate;
@@ -48,20 +68,21 @@ bool BandPassCompute::init() {
         float w = 0.54f - 0.46f *
                   cosf(2.0f * M_PI * i / (m_filterOrder - 1));
 
-        m_coeff[i] = val * w;
+        coeff[i] = val * w;
     }
 
-    m_data = std::make_shared<CpuFloatSignal>(m_coeff, m_filterOrder);
-    return true;
+    m_data = std::make_shared<CpuFloatSignal>(coeff.release(), m_filterOrder);
+    m_isComputed = false;
+    return m_data && m_data->isValid();
 }
 
 bool BandPassCompute::run() {
     if (!m_data) {
-        ERROR << "BandPassCompute::run failed: no input data." << std::endl;
+        ERROR << "BandPassCompute::run failed: coefficients were not initialized." << std::endl;
         return false;
     }
+
     INFO << "BandPassCompute run with data size: " << m_data->size() << std::endl;
-    // Заглушка: просто пропускаем данные без изменений
     return true;
 }
 
@@ -101,14 +122,15 @@ void BandPassCompute::setParam(const std::string& paramName, const std::any& val
 }
 
 bool BandPassCompute::setData(std::shared_ptr<IData> data) {
+    (void)data;
     return true;
 }
 
 std::shared_ptr<IData> BandPassCompute::getData() {
-    if(not m_isComputed){
+    if (m_data && !m_isComputed) {
         m_isComputed = true;
         return m_data;
     }
 
-    return std::make_shared<CpuFloatSignal>(nullptr, 0);
+    return std::make_shared<EmptyContainer>();
 }

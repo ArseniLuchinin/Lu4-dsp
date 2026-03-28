@@ -73,17 +73,34 @@ bool FIRFilter::run(){
     fir_inplace_kernel<<<blocks, threads, shared>>>(
         m_data->getDeviceData(),
         m_data->size(),
-        m_next_history.get(),
+        m_history.get(),
         m_M);
+
+    const auto launchErr = cudaGetLastError();
+    if (launchErr != cudaSuccess) {
+        ERROR << "FIRFilter::run failed: kernel launch error: "
+              << cudaGetErrorString(launchErr) << std::endl;
+        return false;
+    }
 
     DEBUG << "out:" <<  m_data->size() << std::endl; 
 
-    cudaMemcpy(
+    const size_t historySize = static_cast<size_t>(m_M - 1);
+    if (historySize == 0) {
+        return true;
+    }
+
+    const auto copyErr = cudaMemcpy(
         m_history.get(),
         m_next_history.get(),
-        (m_M - 1) * sizeof(float),
+        historySize * sizeof(float),
         cudaMemcpyDeviceToDevice
     );
+    if (copyErr != cudaSuccess) {
+        ERROR << "FIRFilter::run failed: history update copy error: "
+              << cudaGetErrorString(copyErr) << std::endl;
+        return false;
+    }
 
     return true;
 }
