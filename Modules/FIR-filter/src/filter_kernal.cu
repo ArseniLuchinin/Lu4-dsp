@@ -34,10 +34,10 @@ __global__ void fir_inplace_kernel(
     // TODO здесь будут браться данные из буфер
     // PREFIX_BUFFER[MAX_FIR_LENGTH]. В первой итериции все нули,
     // в последующийх прошлые M-1 значений 
-    if (tid < halo)
+    for (int h = tid; h < halo; h += blockDim.x)
     {
-        int idx = base + tid - halo;
-        s_data[tid] = idx >= 0 ?
+        int idx = base + h - halo;
+        s_data[h] = idx >= 0 ?
             in[idx] :
             history[halo + idx];
     }
@@ -84,9 +84,9 @@ __global__ void fir_inplace_complex_kernel(
         s_data_complex[tid + halo] = in[gid];
     }
 
-    if (tid < halo) {
-        const int idx = base + tid - halo;
-        s_data_complex[tid] = (idx >= 0) ? in[idx] : history[halo + idx];
+    for (int h = tid; h < halo; h += blockDim.x) {
+        const int idx = base + h - halo;
+        s_data_complex[h] = (idx >= 0) ? in[idx] : history[halo + idx];
     }
 
     __syncthreads();

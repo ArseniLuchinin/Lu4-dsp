@@ -10,8 +10,8 @@
             "sample rate": "$SAMPLE_RATE",
             "filter order": 129,
             "block size": "$MAX_SIZE",
-            "low cutoff": -140000.0,
-            "high cutoff": -150000.0
+            "low cutoff": 80000.0,
+            "high cutoff": 110000.0
           }
         },
         {
