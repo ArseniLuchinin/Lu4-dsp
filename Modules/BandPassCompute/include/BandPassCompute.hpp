@@ -31,11 +31,11 @@ class BandPassCompute : public IModule, public IVirtualRX {
     std::shared_ptr<IData> getData() override;
 
 private:
-    float m_sampleRate;
+    double m_sampleRate;
     int   m_filterOrder;
     int   m_blockSize;
-    float m_lowCutoff;
-    float m_highCutoff;
+    double m_lowCutoff;
+    double m_highCutoff;
     std::shared_ptr<CpuFloatSignal> m_data;
     bool m_isComputed = false;
 };

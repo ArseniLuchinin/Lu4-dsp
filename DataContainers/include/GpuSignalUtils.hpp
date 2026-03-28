@@ -9,6 +9,7 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
+#include <cuda_runtime.h>
 
 /*!
  * @brief Результат валидации/приведения GPU-сигнала.
@@ -150,6 +151,14 @@ inline ValidationResult ensureHistoryLike(
         history = createLike(input, historySize);
         if (!history || !history->isValid()) {
             return {false, "ensureHistoryLike: failed to create history buffer.", nullptr};
+        }
+
+        const auto clearErr = cudaMemset(
+            history->deviceDataRaw(),
+            0,
+            historySize * history->elementSizeBytes());
+        if (clearErr != cudaSuccess) {
+            return {false, "ensureHistoryLike: failed to zero-initialize history buffer.", nullptr};
         }
     } else if (!history->setLogicalSize(historySize)) {
         return {false, "ensureHistoryLike: failed to set history logical size.", nullptr};

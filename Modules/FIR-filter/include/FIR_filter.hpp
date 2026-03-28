@@ -29,6 +29,7 @@ private:
 
     std::shared_ptr<IData> m_data;
     std::shared_ptr<IGpuSignalData> m_gpuData;
+    std::shared_ptr<IGpuSignalData> m_workData;
     std::shared_ptr<IGpuSignalData> m_historyData;
     std::shared_ptr<IGpuSignalData> m_nextHistoryData;
 };

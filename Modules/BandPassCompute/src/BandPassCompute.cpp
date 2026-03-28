@@ -14,17 +14,17 @@ IModule* createModule() {
 
 BandPassCompute::BandPassCompute()
     : IModule({"BandPassCompute", "", ""})
-    , m_sampleRate(0.0f)
+    , m_sampleRate(0.0)
     , m_filterOrder(0)
     , m_blockSize(0)
-    , m_lowCutoff(0.0f)
-    , m_highCutoff(0.0f)
+    , m_lowCutoff(0.0)
+    , m_highCutoff(0.0)
 {}
 
 BandPassCompute::~BandPassCompute() = default;
 
 bool BandPassCompute::init() {
-    if (m_sampleRate <= 0.0f) {
+    if (m_sampleRate <= 0.0) {
         ERROR << "BandPassCompute::init failed: sample rate must be > 0." << std::endl;
         return false;
     }
@@ -34,12 +34,12 @@ bool BandPassCompute::init() {
         return false;
     }
 
-    if (m_lowCutoff < 0.0f || m_highCutoff <= m_lowCutoff) {
+    if (m_lowCutoff < 0.0 || m_highCutoff <= m_lowCutoff) {
         ERROR << "BandPassCompute::init failed: cutoff range is invalid." << std::endl;
         return false;
     }
 
-    const float nyquist = m_sampleRate * 0.5f;
+    const double nyquist = m_sampleRate * 0.5;
     if (m_highCutoff >= nyquist) {
         ERROR << "BandPassCompute::init failed: high cutoff must be less than Nyquist frequency." << std::endl;
         return false;
@@ -47,8 +47,8 @@ bool BandPassCompute::init() {
 
     auto coeff = std::make_unique<float[]>(m_filterOrder);
 
-    float f1 = m_lowCutoff / m_sampleRate;
-    float f2 = m_highCutoff / m_sampleRate;
+    const double f1 = m_lowCutoff / m_sampleRate;
+    const double f2 = m_highCutoff / m_sampleRate;
 
     int mid = (m_filterOrder - 1) / 2;
 
@@ -56,19 +56,19 @@ bool BandPassCompute::init() {
     {
         int k = i - mid;
 
-        float val;
+        double val;
 
         if (k == 0)
-            val = 2.0f * (f2 - f1);
+            val = 2.0 * (f2 - f1);
         else
-            val = (sinf(2.0f * M_PI * f2 * k)
-                 - sinf(2.0f * M_PI * f1 * k))
+            val = (sin(2.0 * M_PI * f2 * k)
+                 - sin(2.0 * M_PI * f1 * k))
                  / (M_PI * k);
 
-        float w = 0.54f - 0.46f *
-                  cosf(2.0f * M_PI * i / (m_filterOrder - 1));
+        const double w = 0.54 - 0.46 *
+                         cos(2.0 * M_PI * i / (m_filterOrder - 1));
 
-        coeff[i] = val * w;
+        coeff[i] = static_cast<float>(val * w);
     }
 
     m_data = std::make_shared<CpuFloatSignal>(coeff.release(), m_filterOrder);
@@ -89,7 +89,7 @@ bool BandPassCompute::run() {
 void BandPassCompute::setParam(const std::string& paramName, const std::any& value) {
     const std::any resolved = resolveParamValue(value);
     if (paramName == "sample rate") {
-        m_sampleRate = static_cast<float>(std::any_cast<int32_t>(resolved));
+        m_sampleRate = static_cast<double>(std::any_cast<int32_t>(resolved));
         INFO << "BandPassCompute sample rate set to: " << m_sampleRate << std::endl;
         return;
     }
@@ -107,13 +107,13 @@ void BandPassCompute::setParam(const std::string& paramName, const std::any& val
     }
 
     if (paramName == "low cutoff") {
-        m_lowCutoff = std::any_cast<float>(resolved);
+        m_lowCutoff = std::any_cast<double>(resolved);
         INFO << "BandPassCompute low cutoff set to: " << m_lowCutoff << std::endl;
         return;
     }
 
     if (paramName == "high cutoff") {
-        m_highCutoff = std::any_cast<float>(resolved);
+        m_highCutoff = std::any_cast<double>(resolved);
         INFO << "BandPassCompute high cutoff set to: " << m_highCutoff << std::endl;
         return;
     }

@@ -65,6 +65,7 @@ bool FIRFilter::init()
 
     m_data.reset();
     m_gpuData.reset();
+    m_workData.reset();
     m_historyData.reset();
     m_nextHistoryData.reset();
 
@@ -90,6 +91,22 @@ bool FIRFilter::setData(std::shared_ptr<IData> data){
 
     m_gpuData = validation.signal;
     m_data = data;
+
+    const bool needWorkRecreate =
+        !m_workData ||
+        m_workData->sampleType() != m_gpuData->sampleType() ||
+        m_workData->availableSize() < m_gpuData->size();
+
+    if (needWorkRecreate) {
+        m_workData = createLike(*m_gpuData, m_gpuData->size());
+        if (!m_workData || !m_workData->isValid()) {
+            ERROR << "FIRFilter::setData failed: unable to allocate work buffer." << std::endl;
+            return false;
+        }
+    } else if (!m_workData->setLogicalSize(m_gpuData->size())) {
+        ERROR << "FIRFilter::setData failed: unable to set work buffer size." << std::endl;
+        return false;
+    }
 
     auto historyValidation = ensureHistoryLike(
         *m_gpuData, historySize, m_historyData, m_nextHistoryData);

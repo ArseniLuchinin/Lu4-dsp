@@ -10,7 +10,8 @@
 __constant__ float d_h[MAX_FIR_LENGTH];
 
 __global__ void fir_inplace_kernel(
-    float* data,   // вход и выход один и тот же массив
+    const float* in,
+    float* out,
     int N,
     float* history, // При первом расчёта заполнена нулями
     int M)
@@ -27,7 +28,7 @@ __global__ void fir_inplace_kernel(
 
     // загрузка основной части
     if (gid < N)
-        s_data[tid + halo] = data[gid];
+        s_data[tid + halo] = in[gid];
 
     // загрузка "истории" (halo)
     // TODO здесь будут браться данные из буфер
@@ -37,7 +38,7 @@ __global__ void fir_inplace_kernel(
     {
         int idx = base + tid - halo;
         s_data[tid] = idx >= 0 ?
-            data[idx] :
+            in[idx] :
             history[halo + idx];
     }
 
@@ -62,11 +63,12 @@ __global__ void fir_inplace_kernel(
     acc += d_h[half] * s_data[tid + half];
 
     // запись результата обратно (in-place)
-    data[gid] = acc;
+    out[gid] = acc;
 }
 
 __global__ void fir_inplace_complex_kernel(
-    cuComplex* data,
+    const cuComplex* in,
+    cuComplex* out,
     int N,
     const cuComplex* history,
     int M)
@@ -79,12 +81,12 @@ __global__ void fir_inplace_complex_kernel(
     const int base = blockIdx.x * blockDim.x;
 
     if (gid < N) {
-        s_data_complex[tid + halo] = data[gid];
+        s_data_complex[tid + halo] = in[gid];
     }
 
     if (tid < halo) {
         const int idx = base + tid - halo;
-        s_data_complex[tid] = (idx >= 0) ? data[idx] : history[halo + idx];
+        s_data_complex[tid] = (idx >= 0) ? in[idx] : history[halo + idx];
     }
 
     __syncthreads();
@@ -112,7 +114,7 @@ __global__ void fir_inplace_complex_kernel(
     accRe += d_h[half] * xc.x;
     accIm += d_h[half] * xc.y;
 
-    data[gid] = make_cuComplex(accRe, accIm);
+    out[gid] = make_cuComplex(accRe, accIm);
 }
 
 bool FIRFilter::run(){
@@ -126,8 +128,9 @@ bool FIRFilter::run(){
 
     if (m_gpuData->sampleType() == GpuSampleType::Float32) {
         auto floatData = std::dynamic_pointer_cast<GpuFloatSignal>(m_gpuData);
+        auto work = std::dynamic_pointer_cast<GpuFloatSignal>(m_workData);
         auto history = std::dynamic_pointer_cast<GpuFloatSignal>(m_historyData);
-        if (!floatData || !history) {
+        if (!floatData || !work || !history) {
             ERROR << "FIRFilter::run failed: invalid typed buffers for float signal." << std::endl;
             return false;
         }
@@ -135,13 +138,15 @@ bool FIRFilter::run(){
         const size_t shared = (threads + m_M - 1) * sizeof(float);
         fir_inplace_kernel<<<blocks, threads, shared>>>(
             floatData->getDeviceData(),
+            work->getDeviceData(),
             static_cast<int>(floatData->size()),
             history->getDeviceData(),
             m_M);
     } else if (m_gpuData->sampleType() == GpuSampleType::ComplexFloat32) {
         auto complexData = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_gpuData);
+        auto work = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_workData);
         auto history = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_historyData);
-        if (!complexData || !history) {
+        if (!complexData || !work || !history) {
             ERROR << "FIRFilter::run failed: invalid typed buffers for complex signal." << std::endl;
             return false;
         }
@@ -149,6 +154,7 @@ bool FIRFilter::run(){
         const size_t shared = (threads + m_M - 1) * sizeof(cuComplex);
         fir_inplace_complex_kernel<<<blocks, threads, shared>>>(
             complexData->getDeviceData(),
+            work->getDeviceData(),
             static_cast<int>(complexData->size()),
             history->getDeviceData(),
             m_M);
@@ -161,6 +167,18 @@ bool FIRFilter::run(){
     if (launchErr != cudaSuccess) {
         ERROR << "FIRFilter::run failed: kernel launch error: "
               << cudaGetErrorString(launchErr) << std::endl;
+        return false;
+    }
+
+    const auto copyBackErr = cudaMemcpy(
+        m_gpuData->deviceDataRaw(),
+        m_workData->deviceDataRaw(),
+        m_gpuData->size() * m_gpuData->elementSizeBytes(),
+        cudaMemcpyDeviceToDevice
+    );
+    if (copyBackErr != cudaSuccess) {
+        ERROR << "FIRFilter::run failed: copy back error: "
+              << cudaGetErrorString(copyBackErr) << std::endl;
         return false;
     }
 

@@ -2,6 +2,27 @@
   "variables": "/home/luchinin/my_source/Course_poject/Server/variables.toml",
   "conveyors": [
     {
+      "name": "FIR coefficients conveyor",
+      "modules": [
+        {
+          "name": "BandPassCompute",
+          "params": {
+            "sample rate": "$SAMPLE_RATE",
+            "filter order": 129,
+            "block size": "$MAX_SIZE",
+            "low cutoff": -140000.0,
+            "high cutoff": -150000.0
+          }
+        },
+        {
+          "name": "VirtualTX",
+          "params": {
+            "tag": "fir_bandpass_coeff"
+          }
+        }
+      ]
+    },
+    {
       "name": "RX conveyor",
       "modules": [
         {
@@ -44,6 +65,13 @@
             "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/amc_signal.bin",
             "data type": "complex",
             "max size": "$MAX_SIZE"
+          }
+        },
+        {
+          "name": "FIR-filter",
+          "params": {
+            "coefficients data tag": "fir_bandpass_coeff",
+            "filter order": 129
           }
         },
         {
