@@ -79,17 +79,8 @@ bool ComplexFFTOverlapImpl::execute(cufftHandle plan,
                                     bool isFirstRun,
                                     int batchCount)
 {
-    if (!m_inData || !m_outData) {
-        m_lastError = "ComplexFFTOverlapImpl::execute: buffers are not initialized.";
-        return false;
-    }
-
     if (!m_overlapBuffer) {
         m_overlapBuffer = std::make_shared<GpuComplexFloatSignal>(overlapSize);
-    }
-    if (!m_overlapBuffer || !m_overlapBuffer->isValid()) {
-        m_lastError = "ComplexFFTOverlapImpl::execute: failed to allocate overlap buffer.";
-        return false;
     }
 
     auto* inPtr = reinterpret_cast<cufftComplex*>(m_inData->getDeviceData());
@@ -98,10 +89,6 @@ bool ComplexFFTOverlapImpl::execute(cufftHandle plan,
 
     if (isFirstRun && overlapSize > 0) {
         m_overlapBuffer->setDataFromDevice(reinterpret_cast<cuComplex*>(inPtr), overlapSize);
-        if (!m_overlapBuffer->isValid()) {
-            m_lastError = "ComplexFFTOverlapImpl::execute: failed to initialize overlap buffer.";
-            return false;
-        }
     }
 
     void* callbackData = nullptr;

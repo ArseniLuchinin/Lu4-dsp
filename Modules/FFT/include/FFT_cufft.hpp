@@ -31,6 +31,7 @@ private:
     size_t m_fftSize = 1024;
     size_t m_hopSize = 0;
     size_t m_overlapSize = 0;
+    int m_batchCount = 0;
     bool m_isFirstRun = true;
 };
 

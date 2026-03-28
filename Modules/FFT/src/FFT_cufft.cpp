@@ -67,6 +67,7 @@ bool FFT::init() {
     }
 
     m_overlapSize = m_fftSize - m_hopSize;
+    m_batchCount = 0;
     m_isFirstRun = true;
     return true;
 }
@@ -135,18 +136,11 @@ bool FFT::run() {
         m_plan = 0;
     }
 
-    if (!m_impl) {
-        ERROR << "FFT::run: implementation is not selected." << std::endl;
+    if (!initPlan(m_batchCount)) {
         return false;
     }
 
-    const int batchCount = calcBatchCount(m_impl->inputSize());
-
-    if (!initPlan(batchCount)) {
-        return false;
-    }
-
-    if (!m_impl->execute(m_plan, m_fftSize, m_hopSize, m_overlapSize, m_isFirstRun, batchCount)) {
+    if (!m_impl->execute(m_plan, m_fftSize, m_hopSize, m_overlapSize, m_isFirstRun, m_batchCount)) {
         ERROR << "FFT::run: implementation execute failed. "
               << m_impl->lastError() << std::endl;
         cufftDestroy(m_plan);
@@ -220,6 +214,7 @@ bool FFT::setData(std::shared_ptr<IData> data) {
         return false;
     }
 
+    m_batchCount = batch;
     return true;
 }
 
