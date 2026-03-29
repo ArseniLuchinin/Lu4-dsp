@@ -8,6 +8,7 @@
 #include <opencv2/opencv.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -56,16 +57,31 @@ bool resolveFreqBins(size_t fftSize,
     return false;
 }
 
+const std::array<cv::Vec3b, 256>& plasmaLut()
+{
+    static const std::array<cv::Vec3b, 256> lut = [] {
+        std::array<cv::Vec3b, 256> values{};
+        cv::Mat gray(1, 256, CV_8UC1);
+        for (int i = 0; i < 256; ++i) {
+            gray.at<unsigned char>(0, i) = static_cast<unsigned char>(i);
+        }
+
+        cv::Mat colored;
+        cv::applyColorMap(gray, colored, cv::COLORMAP_PLASMA);
+        for (int i = 0; i < 256; ++i) {
+            values[static_cast<size_t>(i)] = colored.at<cv::Vec3b>(0, i);
+        }
+        return values;
+    }();
+    return lut;
+}
+
 cv::Vec3b colorizeLevel(float normalized)
 {
     const float t = std::clamp(normalized, 0.0f, 1.0f);
     const float gammaCorrected = std::pow(t, 0.8f);
-    const unsigned char level = static_cast<unsigned char>(
-        std::round(gammaCorrected * 255.0f));
-    cv::Mat gray(1, 1, CV_8UC1, cv::Scalar(level));
-    cv::Mat colored;
-    cv::applyColorMap(gray, colored, cv::COLORMAP_PLASMA);
-    return colored.at<cv::Vec3b>(0, 0);
+    const int idx = static_cast<int>(std::round(gammaCorrected * 255.0f));
+    return plasmaLut()[static_cast<size_t>(std::clamp(idx, 0, 255))];
 }
 
 cv::Vec3b maskedBackground(float normalized)
@@ -144,9 +160,9 @@ bool SpectrogramPlot::run() {
         return false;
     }
 
-    std::vector<float> hostBuffer(totalSize);
+    m_hostBuffer.resize(totalSize);
     const auto copyErr = cudaMemcpy(
-        hostBuffer.data(),
+        m_hostBuffer.data(),
         m_data->getDeviceData(),
         totalSize * sizeof(float),
         cudaMemcpyDeviceToHost);
@@ -161,28 +177,29 @@ bool SpectrogramPlot::run() {
         minValue = static_cast<float>(m_dbMin);
         maxValue = static_cast<float>(m_dbMax);
     } else {
-        const auto [minIt, maxIt] = std::minmax_element(hostBuffer.begin(), hostBuffer.end());
+        const auto [minIt, maxIt] = std::minmax_element(m_hostBuffer.begin(), m_hostBuffer.end());
         minValue = *minIt;
         maxValue = *maxIt;
     }
     const float range = std::max(maxValue - minValue, 1.0e-12f);
-    INFO << "SpectrogramPlot::run: dB range in frame min=" << minValue
-         << ", max=" << maxValue
-         << (m_hasMaskBelowDb ? (", mask below=" + std::to_string(m_maskBelowDb)) : "")
-         << std::endl;
+    DEBUG << "SpectrogramPlot::run: dB range in frame min=" << minValue
+          << ", max=" << maxValue
+          << (m_hasMaskBelowDb ? (", mask below=" + std::to_string(m_maskBelowDb)) : "")
+          << std::endl;
 
     cv::Mat image(static_cast<int>(rows), static_cast<int>(m_freqBins), CV_8UC3);
 
     for (size_t y = 0; y < rows; ++y) {
         const size_t dstY = rows - 1 - y;
+        auto* rowPtr = image.ptr<cv::Vec3b>(static_cast<int>(dstY));
         for (size_t x = 0; x < m_freqBins; ++x) {
-            const float raw = hostBuffer[(y * m_freqBins) + x];
+            const float raw = m_hostBuffer[(y * m_freqBins) + x];
             const float normalized = std::clamp((raw - minValue) / range, 0.0f, 1.0f);
             if (m_hasMaskBelowDb && raw < static_cast<float>(m_maskBelowDb)) {
-                image.at<cv::Vec3b>(static_cast<int>(dstY), static_cast<int>(x)) = maskedBackground(normalized);
+                rowPtr[x] = maskedBackground(normalized);
                 continue;
             }
-            image.at<cv::Vec3b>(static_cast<int>(dstY), static_cast<int>(x)) = colorizeLevel(normalized);
+            rowPtr[x] = colorizeLevel(normalized);
         }
     }
 
@@ -239,7 +256,11 @@ bool SpectrogramPlot::run() {
     }
 
     const std::string outPath = m_savePath.empty() ? "spectrogram" + std::to_string(i) + ".png" : m_savePath + std::to_string(i) + ".png";
-    if (!cv::imwrite(outPath, canvas)) {
+    std::vector<int> writeParams = {
+        cv::IMWRITE_PNG_COMPRESSION, std::clamp(m_pngCompression, 0, 9),
+        cv::IMWRITE_PNG_STRATEGY, cv::IMWRITE_PNG_STRATEGY_RLE
+    };
+    if (!cv::imwrite(outPath, canvas, writeParams)) {
         ERROR << "SpectrogramPlot::run: failed to save image to " << outPath << std::endl;
         return false;
     }
@@ -317,6 +338,11 @@ void SpectrogramPlot::setParam(const std::string& paramName, const std::any& val
 
     if (paramName == "save path") {
         m_savePath = std::any_cast<std::string>(resolved);
+        return;
+    }
+
+    if (paramName == "png compression") {
+        m_pngCompression = std::any_cast<int32_t>(resolved);
         return;
     }
 }

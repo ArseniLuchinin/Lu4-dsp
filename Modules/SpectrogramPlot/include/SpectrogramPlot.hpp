@@ -7,6 +7,7 @@
 #include <any>
 #include <memory>
 #include <string>
+#include <vector>
 
 class SpectrogramPlot : public IModule {
 public:
@@ -40,9 +41,11 @@ private:
 
     bool m_isShow = true;
     std::string m_savePath;
+    int m_pngCompression = 1;
 
     std::shared_ptr<IData> m_transitData;
     std::shared_ptr<GpuFloatSignal> m_data;
+    std::vector<float> m_hostBuffer;
 };
 
 #endif

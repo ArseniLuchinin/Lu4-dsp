@@ -108,11 +108,13 @@ bool FFT_Shift::run() {
         return false;
     }
 
+    /*
     const auto syncErr = cudaDeviceSynchronize();
     if (syncErr != cudaSuccess) {
         ERROR << "FFT_Shift::run: kernel execution failed: " << cudaGetErrorString(syncErr) << std::endl;
         return false;
     }
+    */
 
     return true;
 }
