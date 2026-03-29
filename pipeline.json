@@ -5,18 +5,20 @@
       "name": "FIR coefficients conveyor",
       "modules": [
         {
-          "name": "BandPassCompute",
+          "name": "RRCCompute",
           "params": {
             "sample rate": "$SAMPLE_RATE",
-            "filter order": 8191,
-            "low cutoff":  110000.0,
-            "high cutoff":  250000.0
+            "symbol rate": 16384,
+            "rolloff": 0.35,
+            "span symbols": 8,
+            "samples per symbol": 128,
+            "normalize gain": true
           }
         },
         {
           "name": "VirtualTX",
           "params": {
-            "tag": "fir_bandpass_coeff"
+            "tag": "fir_rrc_coeff"
           }
         }
       ]
@@ -55,8 +57,8 @@
             "freq min": -1048576.0,
             "freq max": 1048576.0,
             "db min": -90.0,
-            "db max": -20.0,
-            "mask below db" : -30.0,
+            "db max": -40.0,
+            "mask below db" : -60.0,
             "save path": "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogramm_filtered_"
           }
         }
@@ -68,7 +70,7 @@
         {
           "name": "FileSrc",
           "params": {
-            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/amc_signal.bin",
+            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_signal.bin",
             "data type": "complex",
             "max size": "$MAX_SIZE"
           }
@@ -76,10 +78,10 @@
         {
           "name": "FIR-filter",
           "params": {
-            "coefficients data tag": "fir_bandpass_coeff",
-            "filter order": 8191,
-            "coefficients type": "auto",
-            "log energy": false 
+            "coefficients data tag": "fir_rrc_coeff",
+            "filter order": 1025,
+            "coefficients type": "real",
+            "log energy": false
           }
         },
         {

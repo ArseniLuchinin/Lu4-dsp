@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(CTest)
+
 find_package(CUDAToolkit)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(HIREDIS REQUIRED hiredis)
@@ -52,6 +54,10 @@ function(add_all_subdirs DIR_PATH)
 endfunction()
 
 add_all_subdirs("Modules")
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 
 # Copy runtime config
 configure_file(
