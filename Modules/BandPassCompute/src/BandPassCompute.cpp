@@ -8,6 +8,26 @@
 #include <cmath>
 #include <memory>
 
+namespace {
+
+double hammingWindow(int i, int order)
+{
+    return 0.54 - 0.46 * std::cos(2.0 * M_PI * i / (order - 1));
+}
+
+bool isBasicCutoffRangeValid(double lowCutoff, double highCutoff)
+{
+    return lowCutoff >= 0.0 && highCutoff > lowCutoff;
+}
+
+bool isNyquistBoundValid(double sampleRate, double highCutoff)
+{
+    const double nyquist = sampleRate * 0.5;
+    return highCutoff < nyquist;
+}
+
+} // namespace
+
 IModule* createModule() {
     return new BandPassCompute();
 }
@@ -16,7 +36,6 @@ BandPassCompute::BandPassCompute()
     : IModule({"BandPassCompute", "", ""})
     , m_sampleRate(0.0)
     , m_filterOrder(0)
-    , m_blockSize(0)
     , m_lowCutoff(0.0)
     , m_highCutoff(0.0)
 {}
@@ -34,13 +53,11 @@ bool BandPassCompute::init() {
         return false;
     }
 
-    if (m_lowCutoff < 0.0 || m_highCutoff <= m_lowCutoff) {
+    if (!isBasicCutoffRangeValid(m_lowCutoff, m_highCutoff)) {
         ERROR << "BandPassCompute::init failed: cutoff range is invalid." << std::endl;
         return false;
     }
-
-    const double nyquist = m_sampleRate * 0.5;
-    if (m_highCutoff >= nyquist) {
+    if (!isNyquistBoundValid(m_sampleRate, m_highCutoff)) {
         ERROR << "BandPassCompute::init failed: high cutoff must be less than Nyquist frequency." << std::endl;
         return false;
     }
@@ -65,8 +82,7 @@ bool BandPassCompute::init() {
                  - sin(2.0 * M_PI * f1 * k))
                  / (M_PI * k);
 
-        const double w = 0.54 - 0.46 *
-                         cos(2.0 * M_PI * i / (m_filterOrder - 1));
+        const double w = hammingWindow(i, m_filterOrder);
 
         coeff[i] = static_cast<float>(val * w);
     }
@@ -82,7 +98,7 @@ bool BandPassCompute::run() {
         return false;
     }
 
-    INFO << "BandPassCompute run with data size: " << m_data->size() << std::endl;
+    DEBUG << "BandPassCompute::run data size: " << m_data->size() << std::endl;
     return true;
 }
 
@@ -90,31 +106,31 @@ void BandPassCompute::setParam(const std::string& paramName, const std::any& val
     const std::any resolved = resolveParamValue(value);
     if (paramName == "sample rate") {
         m_sampleRate = static_cast<double>(std::any_cast<int32_t>(resolved));
-        INFO << "BandPassCompute sample rate set to: " << m_sampleRate << std::endl;
+        DEBUG << "BandPassCompute sample rate set to: " << m_sampleRate << std::endl;
         return;
     }
 
     if (paramName == "filter order") {
         m_filterOrder = std::any_cast<int32_t>(resolved);
-        INFO << "BandPassCompute filter order set to: " << m_filterOrder << std::endl;
+        DEBUG << "BandPassCompute filter order set to: " << m_filterOrder << std::endl;
         return;
     }
 
     if (paramName == "block size") {
-        m_blockSize = std::any_cast<int32_t>(resolved);
-        INFO << "BandPassCompute block size set to: " << m_blockSize << std::endl;
+        (void)std::any_cast<int32_t>(resolved);
+        DEBUG << "BandPassCompute::setParam: 'block size' is accepted for compatibility and ignored." << std::endl;
         return;
     }
 
     if (paramName == "low cutoff") {
         m_lowCutoff = std::any_cast<double>(resolved);
-        INFO << "BandPassCompute low cutoff set to: " << m_lowCutoff << std::endl;
+        DEBUG << "BandPassCompute low cutoff set to: " << m_lowCutoff << std::endl;
         return;
     }
 
     if (paramName == "high cutoff") {
         m_highCutoff = std::any_cast<double>(resolved);
-        INFO << "BandPassCompute high cutoff set to: " << m_highCutoff << std::endl;
+        DEBUG << "BandPassCompute high cutoff set to: " << m_highCutoff << std::endl;
         return;
     }
 

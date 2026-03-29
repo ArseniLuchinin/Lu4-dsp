@@ -33,7 +33,6 @@ class BandPassCompute : public IModule, public IVirtualRX {
 private:
     double m_sampleRate;
     int   m_filterOrder;
-    int   m_blockSize;
     double m_lowCutoff;
     double m_highCutoff;
     std::shared_ptr<CpuFloatSignal> m_data;

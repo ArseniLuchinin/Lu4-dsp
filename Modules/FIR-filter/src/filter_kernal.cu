@@ -124,7 +124,31 @@ __global__ void energy_complex_kernel(const cuComplex* in, int N, double* outEne
     atomicAdd(outEnergy, (re * re) + (im * im));
 }
 
-bool computeSignalEnergy(const std::shared_ptr<IGpuSignalData>& signal, double* outEnergy)
+template <typename TSignal>
+std::shared_ptr<TSignal> castGpuSignal(
+    const std::shared_ptr<IGpuSignalData>& signal,
+    const char* /*context*/)
+{
+    return std::dynamic_pointer_cast<TSignal>(signal);
+}
+
+bool ensureEnergyBuffer(double*& buffer)
+{
+    if (buffer) {
+        return true;
+    }
+
+    const auto allocErr = cudaMalloc(reinterpret_cast<void**>(&buffer), sizeof(double));
+    if (allocErr != cudaSuccess) {
+        return false;
+    }
+    return true;
+}
+
+bool computeSignalEnergy(
+    const std::shared_ptr<IGpuSignalData>& signal,
+    double*& energyBuffer,
+    double* outEnergy)
 {
     if (!signal || !outEnergy) {
         return false;
@@ -136,15 +160,12 @@ bool computeSignalEnergy(const std::shared_ptr<IGpuSignalData>& signal, double* 
         return true;
     }
 
-    double* dEnergy = nullptr;
-    const auto allocErr = cudaMalloc(&dEnergy, sizeof(double));
-    if (allocErr != cudaSuccess) {
+    if (!ensureEnergyBuffer(energyBuffer)) {
         return false;
     }
 
-    const auto clearErr = cudaMemset(dEnergy, 0, sizeof(double));
+    const auto clearErr = cudaMemset(energyBuffer, 0, sizeof(double));
     if (clearErr != cudaSuccess) {
-        cudaFree(dEnergy);
         return false;
     }
 
@@ -154,36 +175,25 @@ bool computeSignalEnergy(const std::shared_ptr<IGpuSignalData>& signal, double* 
     if (signal->sampleType() == GpuSampleType::Float32) {
         auto in = std::dynamic_pointer_cast<GpuFloatSignal>(signal);
         if (!in) {
-            cudaFree(dEnergy);
             return false;
         }
-        energy_float_kernel<<<blocks, threads>>>(in->getDeviceData(), N, dEnergy);
+        energy_float_kernel<<<blocks, threads>>>(in->getDeviceData(), N, energyBuffer);
     } else if (signal->sampleType() == GpuSampleType::ComplexFloat32) {
         auto in = std::dynamic_pointer_cast<GpuComplexFloatSignal>(signal);
         if (!in) {
-            cudaFree(dEnergy);
             return false;
         }
-        energy_complex_kernel<<<blocks, threads>>>(in->getDeviceData(), N, dEnergy);
+        energy_complex_kernel<<<blocks, threads>>>(in->getDeviceData(), N, energyBuffer);
     } else {
-        cudaFree(dEnergy);
         return false;
     }
 
     const auto launchErr = cudaGetLastError();
     if (launchErr != cudaSuccess) {
-        cudaFree(dEnergy);
         return false;
     }
 
-    const auto syncErr = cudaDeviceSynchronize();
-    if (syncErr != cudaSuccess) {
-        cudaFree(dEnergy);
-        return false;
-    }
-
-    const auto copyErr = cudaMemcpy(outEnergy, dEnergy, sizeof(double), cudaMemcpyDeviceToHost);
-    cudaFree(dEnergy);
+    const auto copyErr = cudaMemcpy(outEnergy, energyBuffer, sizeof(double), cudaMemcpyDeviceToHost);
     if (copyErr != cudaSuccess) {
         return false;
     }
@@ -206,15 +216,15 @@ bool FIRFilter::run(){
     }
 
     double energyBefore = 0.0;
-    if (m_logEnergy && !computeSignalEnergy(m_gpuData, &energyBefore)) {
+    if (m_logEnergy && !computeSignalEnergy(m_gpuData, m_energyBuffer, &energyBefore)) {
         ERROR << "FIRFilter::run failed: unable to compute input signal energy." << std::endl;
         return false;
     }
 
     if (m_tapType == TapType::Real && m_gpuData->sampleType() == GpuSampleType::Float32) {
-        auto in = std::dynamic_pointer_cast<GpuFloatSignal>(m_gpuData);
-        auto out = std::dynamic_pointer_cast<GpuFloatSignal>(m_workData);
-        auto history = std::dynamic_pointer_cast<GpuFloatSignal>(m_historyData);
+        auto in = castGpuSignal<GpuFloatSignal>(m_gpuData, "FIRFilter::run");
+        auto out = castGpuSignal<GpuFloatSignal>(m_workData, "FIRFilter::run");
+        auto history = castGpuSignal<GpuFloatSignal>(m_historyData, "FIRFilter::run");
         if (!in || !out || !history || !m_realTaps) {
             ERROR << "FIRFilter::run failed: invalid buffers for real input + real taps mode." << std::endl;
             return false;
@@ -228,9 +238,9 @@ bool FIRFilter::run(){
             m_realTaps->getDeviceData(),
             m_M);
     } else if (m_tapType == TapType::Real && m_gpuData->sampleType() == GpuSampleType::ComplexFloat32) {
-        auto in = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_gpuData);
-        auto out = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_workData);
-        auto history = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_historyData);
+        auto in = castGpuSignal<GpuComplexFloatSignal>(m_gpuData, "FIRFilter::run");
+        auto out = castGpuSignal<GpuComplexFloatSignal>(m_workData, "FIRFilter::run");
+        auto history = castGpuSignal<GpuComplexFloatSignal>(m_historyData, "FIRFilter::run");
         if (!in || !out || !history || !m_realTaps) {
             ERROR << "FIRFilter::run failed: invalid buffers for complex input + real taps mode." << std::endl;
             return false;
@@ -244,9 +254,9 @@ bool FIRFilter::run(){
             m_realTaps->getDeviceData(),
             m_M);
     } else if (m_tapType == TapType::Complex && m_gpuData->sampleType() == GpuSampleType::ComplexFloat32) {
-        auto in = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_gpuData);
-        auto out = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_workData);
-        auto history = std::dynamic_pointer_cast<GpuComplexFloatSignal>(m_historyData);
+        auto in = castGpuSignal<GpuComplexFloatSignal>(m_gpuData, "FIRFilter::run");
+        auto out = castGpuSignal<GpuComplexFloatSignal>(m_workData, "FIRFilter::run");
+        auto history = castGpuSignal<GpuComplexFloatSignal>(m_historyData, "FIRFilter::run");
         if (!in || !out || !history || !m_complexTaps) {
             ERROR << "FIRFilter::run failed: invalid buffers for complex input + complex taps mode." << std::endl;
             return false;
@@ -271,13 +281,6 @@ bool FIRFilter::run(){
         return false;
     }
 
-    const auto kernelSyncErr = cudaDeviceSynchronize();
-    if (kernelSyncErr != cudaSuccess) {
-        ERROR << "FIRFilter::run failed: kernel execution error: "
-              << cudaGetErrorString(kernelSyncErr) << std::endl;
-        return false;
-    }
-
     const auto copyBackErr = cudaMemcpy(
         m_gpuData->deviceDataRaw(),
         m_workData->deviceDataRaw(),
@@ -287,13 +290,6 @@ bool FIRFilter::run(){
     if (copyBackErr != cudaSuccess) {
         ERROR << "FIRFilter::run failed: copy back error: "
               << cudaGetErrorString(copyBackErr) << std::endl;
-        return false;
-    }
-
-    const auto copyBackSyncErr = cudaDeviceSynchronize();
-    if (copyBackSyncErr != cudaSuccess) {
-        ERROR << "FIRFilter::run failed: copy back sync error: "
-              << cudaGetErrorString(copyBackSyncErr) << std::endl;
         return false;
     }
 
@@ -319,16 +315,9 @@ bool FIRFilter::run(){
         return false;
     }
 
-    const auto historySyncErr = cudaDeviceSynchronize();
-    if (historySyncErr != cudaSuccess) {
-        ERROR << "FIRFilter::run failed: history sync error: "
-              << cudaGetErrorString(historySyncErr) << std::endl;
-        return false;
-    }
-
     if (m_logEnergy) {
         double energyAfter = 0.0;
-        if (!computeSignalEnergy(m_gpuData, &energyAfter)) {
+        if (!computeSignalEnergy(m_gpuData, m_energyBuffer, &energyAfter)) {
             ERROR << "FIRFilter::run failed: unable to compute output signal energy." << std::endl;
             return false;
         }
@@ -336,9 +325,9 @@ bool FIRFilter::run(){
         const double eps = 1.0e-30;
         const double ratio = (energyAfter + eps) / (energyBefore + eps);
         const double ratioDb = 10.0 * std::log10(ratio);
-        INFO << "FIR energy before=" << energyBefore
-             << ", after=" << energyAfter
-             << ", delta=" << ratioDb << " dB" << std::endl;
+        DEBUG << "FIR energy before=" << energyBefore
+              << ", after=" << energyAfter
+              << ", delta=" << ratioDb << " dB" << std::endl;
     }
 
     return true;

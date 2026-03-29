@@ -9,7 +9,7 @@
           "params": {
             "sample rate": "$SAMPLE_RATE",
             "filter order": 8191,
-            "low cutoff":  -200000.0,
+            "low cutoff":  -120000.0,
             "high cutoff":  250000.0
           }
         },
@@ -79,7 +79,7 @@
             "coefficients data tag": "fir_bandpass_coeff",
             "filter order": 8191,
             "coefficients type": "auto",
-            "log energy": true
+            "log energy": false 
           }
         },
         {

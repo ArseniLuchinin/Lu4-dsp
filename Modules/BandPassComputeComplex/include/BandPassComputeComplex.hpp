@@ -29,7 +29,6 @@ private:
 
     double m_sampleRate = 0.0;
     int m_filterOrder = 0;
-    int m_blockSize = 0;
     double m_lowCutoff = 0.0;
     double m_highCutoff = 0.0;
     Sideband m_sideband = Sideband::Negative;

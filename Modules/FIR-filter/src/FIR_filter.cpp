@@ -17,6 +17,13 @@ IModule* createModule() {
 }
 
 FIRFilter::FIRFilter() : IModule({"FIR-filter", "", ""}) {}
+FIRFilter::~FIRFilter()
+{
+    if (m_energyBuffer) {
+        cudaFree(m_energyBuffer);
+        m_energyBuffer = nullptr;
+    }
+}
 
 bool FIRFilter::init()
 {
@@ -219,6 +226,12 @@ void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
 
     if (paramName == "log energy") {
         m_logEnergy = std::any_cast<bool>(resolved);
+        return;
+    }
+
+    if (paramName == "block size") {
+        (void)std::any_cast<int32_t>(resolved);
+        DEBUG << "FIRFilter::setParam: 'block size' is accepted for compatibility and ignored." << std::endl;
         return;
     }
 

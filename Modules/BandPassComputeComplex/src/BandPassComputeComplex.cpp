@@ -19,6 +19,11 @@ double sinc(double x)
     return std::sin(M_PI * x) / (M_PI * x);
 }
 
+double hammingWindow(int i, int order)
+{
+    return 0.54 - 0.46 * std::cos(2.0 * M_PI * i / (order - 1));
+}
+
 } // namespace
 
 IModule* createModule() {
@@ -69,7 +74,7 @@ bool BandPassComputeComplex::init() {
                 val = (std::sin(2.0 * M_PI * f2 * k) - std::sin(2.0 * M_PI * f1 * k)) / (M_PI * k);
             }
 
-            const double w = 0.54 - 0.46 * std::cos(2.0 * M_PI * i / (m_filterOrder - 1));
+            const double w = hammingWindow(i, m_filterOrder);
             coeff[i] = static_cast<float>(val * w);
         }
 
@@ -122,7 +127,7 @@ bool BandPassComputeComplex::init() {
 
         const double lpNorm = 2.0 * halfBw / m_sampleRate;
         const double lp = lpNorm * sinc(2.0 * halfBw * n / m_sampleRate);
-        const double w = 0.54 - 0.46 * std::cos(2.0 * M_PI * i / (m_filterOrder - 1));
+        const double w = hammingWindow(i, m_filterOrder);
         const double env = lp * w;
 
         const double phase = 2.0 * M_PI * fc * n / m_sampleRate;
@@ -143,7 +148,7 @@ bool BandPassComputeComplex::run() {
         return false;
     }
 
-    INFO << "BandPassComputeComplex run with data size: " << m_data->size() << std::endl;
+    DEBUG << "BandPassComputeComplex::run data size: " << m_data->size() << std::endl;
     return true;
 }
 
@@ -151,26 +156,31 @@ void BandPassComputeComplex::setParam(const std::string& paramName, const std::a
     const std::any resolved = resolveParamValue(value);
     if (paramName == "sample rate") {
         m_sampleRate = static_cast<double>(std::any_cast<int32_t>(resolved));
+        DEBUG << "BandPassComputeComplex sample rate set to: " << m_sampleRate << std::endl;
         return;
     }
 
     if (paramName == "filter order") {
         m_filterOrder = std::any_cast<int32_t>(resolved);
+        DEBUG << "BandPassComputeComplex filter order set to: " << m_filterOrder << std::endl;
         return;
     }
 
     if (paramName == "block size") {
-        m_blockSize = std::any_cast<int32_t>(resolved);
+        (void)std::any_cast<int32_t>(resolved);
+        DEBUG << "BandPassComputeComplex::setParam: 'block size' is accepted for compatibility and ignored." << std::endl;
         return;
     }
 
     if (paramName == "low cutoff") {
         m_lowCutoff = std::any_cast<double>(resolved);
+        DEBUG << "BandPassComputeComplex low cutoff set to: " << m_lowCutoff << std::endl;
         return;
     }
 
     if (paramName == "high cutoff") {
         m_highCutoff = std::any_cast<double>(resolved);
+        DEBUG << "BandPassComputeComplex high cutoff set to: " << m_highCutoff << std::endl;
         return;
     }
 

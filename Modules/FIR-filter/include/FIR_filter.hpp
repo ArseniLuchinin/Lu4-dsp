@@ -14,6 +14,7 @@
 class FIRFilter : public IModule, public IVirtualRX { 
 public:
     FIRFilter();
+    ~FIRFilter() override;
 
     bool init() override;
     bool run() override;
@@ -37,7 +38,6 @@ private:
     };
 
     int   m_M = 0;
-    int   m_blockSize = 0;
     bool m_logEnergy = true;
     TapType m_tapType = TapType::None;
     CoefficientsTypeMode m_coefficientsTypeMode = CoefficientsTypeMode::Auto;
@@ -49,6 +49,7 @@ private:
     std::shared_ptr<IGpuSignalData> m_nextHistoryData;
     std::shared_ptr<GpuFloatSignal> m_realTaps;
     std::shared_ptr<GpuComplexFloatSignal> m_complexTaps;
+    double* m_energyBuffer = nullptr;
 };
 
 #endif
