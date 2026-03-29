@@ -8,10 +8,10 @@
           "name": "RRCCompute",
           "params": {
             "sample rate": "$SAMPLE_RATE",
-            "symbol rate": 16384,
+            "symbol rate": "$QPSK_SYMBOL_RATE",
             "rolloff": 0.35,
             "span symbols": 8,
-            "samples per symbol": 128,
+            "samples per symbol": "$QPSK_SPS",
             "normalize gain": true
           }
         },
@@ -19,47 +19,6 @@
           "name": "VirtualTX",
           "params": {
             "tag": "fir_rrc_coeff"
-          }
-        }
-      ]
-    },
-    {
-      "name": "RX conveyor",
-      "modules": [
-        {
-          "name": "VirtualRX",
-          "params": {
-            "tag": "fft_out"
-          }
-        },
-        {
-          "name": "CS2AS",
-          "params": {
-            "fft size": "$FFT_SIZE",
-            "normalize by fft size": true
-          }
-        },
-        {
-          "name": "FFT_Shift",
-          "params": {
-            "fft size": "$FFT_SIZE",
-            "window size": "$FFT_WINDOW"
-          }
-        },
-        {
-          "name": "SpectrogramPlot",
-          "params": {
-            "sample rate": "$SAMPLE_RATE",
-            "fft size": "$FFT_SIZE",
-            "hop size": "$FFT_HOP_SIZE",
-            "window size": "$FFT_WINDOW",
-            "centered spectrum": true,
-            "freq min": -1048576.0,
-            "freq max": 1048576.0,
-            "db min": -90.0,
-            "db max": -40.0,
-            "mask below db" : -60.0,
-            "save path": "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogramm_filtered_"
           }
         }
       ]
@@ -85,16 +44,39 @@
           }
         },
         {
-          "name": "FFT",
+          "name": "Decimator",
           "params": {
-            "fft size": "$FFT_SIZE",
-            "hop size": "$FFT_HOP_SIZE"
+            "samples per symbol": "$QPSK_SPS",
+            "offset": 0
           }
         },
         {
-          "name": "VirtualTX",
+          "name": "CarrierPhaseEstimator",
           "params": {
-            "tag": "fft_out"
+            "phase tag": "qpsk_phase"
+          }
+        },
+        {
+          "name": "PhaseRotator",
+          "params": {
+            "phase tag": "qpsk_phase"
+          }
+        },
+        {
+          "name": "QPSKDecision"
+        },
+        {
+          "name": "BitPacker",
+          "params": {
+            "bit order": "msb-first",
+            "flush tail": false,
+            "discard leading bits": 16
+          }
+        },
+        {
+          "name": "TextFileWriter",
+          "params": {
+            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_decoded.txt"
           }
         }
       ]

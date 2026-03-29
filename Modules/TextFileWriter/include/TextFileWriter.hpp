@@ -1,0 +1,33 @@
+#ifndef TEXT_FILE_WRITER_HPP
+#define TEXT_FILE_WRITER_HPP
+
+#include <IModule.hpp>
+
+#include <CpuByteSignal.hpp>
+
+#include <fstream>
+#include <memory>
+#include <string>
+
+class TextFileWriter : public IModule {
+public:
+    TextFileWriter();
+    ~TextFileWriter() override;
+
+    bool init() override;
+    bool run() override;
+
+    void setParam(const std::string& paramName, const std::any& value) override;
+    bool setData(std::shared_ptr<IData> data) override;
+    std::shared_ptr<IData> getData() override;
+
+private:
+    std::string m_fileName;
+
+    std::ofstream m_out;
+
+    std::shared_ptr<CpuByteSignal> m_inData;
+    std::shared_ptr<IData> m_outData;
+};
+
+#endif // TEXT_FILE_WRITER_HPP

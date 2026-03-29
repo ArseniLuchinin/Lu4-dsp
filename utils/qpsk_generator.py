@@ -1,46 +1,56 @@
 import argparse
 import numpy as np
 
-def bits_from_bytes(byte_array):
-    return np.unpackbits(np.frombuffer(byte_array, dtype=np.uint8))
 
+# ---------- БИТЫ ----------
+def bytes_to_bits(data):
+    return np.unpackbits(np.frombuffer(data, dtype=np.uint8))
+
+
+# ---------- QPSK ----------
 def bits_to_qpsk(bits):
+    # дополняем до чётного числа
     if len(bits) % 2 != 0:
         bits = np.append(bits, 0)
 
-    bits = bits.reshape(-1, 2)
+    # unpackbits -> uint8, so cast to signed/float before arithmetic.
+    # Otherwise 1 - 2*1 underflows as uint8 and becomes 255.
+    b0 = bits[0::2].astype(np.float32)
+    b1 = bits[1::2].astype(np.float32)
 
-    # Gray mapping
-    mapping = {
-        (0, 0): 1 + 1j,
-        (0, 1): -1 + 1j,
-        (1, 1): -1 - 1j,
-        (1, 0): 1 - 1j,
-    }
+    # Gray coding (векторно!)
+    I = 1 - 2 * b0   # 0->+1, 1->-1
+    Q = 1 - 2 * b1
 
-    symbols = np.array([mapping[tuple(b)] for b in bits], dtype=np.complex64)
+    symbols = (I + 1j * Q).astype(np.complex64)
+
+    # нормализация мощности → |s| = 1
     symbols /= np.sqrt(2)
 
     return symbols
 
-def upsample(symbols, sps):
-    up = np.zeros(len(symbols) * sps, dtype=np.complex64)
-    up[::sps] = symbols
-    return up
 
-def rrc_filter(beta, sps, span):
+# ---------- UPSAMPLE ----------
+def upsample(symbols, sps):
+    out = np.zeros(len(symbols) * sps, dtype=np.complex64)
+    out[::sps] = symbols
+    return out
+
+
+# ---------- RRC ----------
+def rrc(beta, sps, span):
     N = span * sps
-    t = np.arange(-N/2, N/2 + 1) / sps
+    t = np.arange(-N//2, N//2 + 1) / sps
 
     h = np.zeros_like(t, dtype=np.float32)
 
     for i, ti in enumerate(t):
-        if ti == 0.0:
-            h[i] = 1.0 - beta + 4 * beta / np.pi
+        if ti == 0:
+            h[i] = 1 - beta + 4 * beta / np.pi
         elif abs(ti) == 1 / (4 * beta):
             h[i] = (beta / np.sqrt(2)) * (
-                ((1 + 2/np.pi) * np.sin(np.pi/(4*beta))) +
-                ((1 - 2/np.pi) * np.cos(np.pi/(4*beta)))
+                (1 + 2/np.pi) * np.sin(np.pi/(4*beta)) +
+                (1 - 2/np.pi) * np.cos(np.pi/(4*beta))
             )
         else:
             h[i] = (
@@ -50,59 +60,80 @@ def rrc_filter(beta, sps, span):
                 np.pi * ti * (1 - (4 * beta * ti)**2)
             )
 
+    # нормализация энергии
     h /= np.sqrt(np.sum(h**2))
     return h
 
+
+# ---------- IQ SAVE ----------
 def save_iq(f, signal):
     iq = np.empty(signal.size * 2, dtype=np.float32)
     iq[0::2] = signal.real
     iq[1::2] = signal.imag
     iq.tofile(f)
 
-def main():
-    parser = argparse.ArgumentParser(description="Streaming QPSK generator (text file)")
 
-    parser.add_argument("--input", required=True, help="Input TEXT file (UTF-8)")
-    parser.add_argument("--fs", type=float, required=True, help="Sample rate")
+# ---------- MAIN ----------
+def main():
+    parser = argparse.ArgumentParser(description="Clean QPSK generator")
+
+    parser.add_argument("--input", required=True, help="Text file (UTF-8)")
+    parser.add_argument("--fs", type=float, required=True)
 
     parser.add_argument("--sps", type=int, default=4)
+    parser.add_argument("--mode", choices=["ideal", "rrc"], default="ideal")
+
     parser.add_argument("--beta", type=float, default=0.35)
     parser.add_argument("--span", type=int, default=8)
-    parser.add_argument("--chunk", type=int, default=1024*1024, help="Chars per chunk")
-    parser.add_argument("--out", default="qpsk.bin")
+
+    parser.add_argument("--chunk", type=int, default=1024*1024)
+    parser.add_argument("--out", default="signal.bin")
 
     args = parser.parse_args()
 
-    h = rrc_filter(args.beta, args.sps, args.span)
-    fir_tail = np.zeros(len(h)-1, dtype=np.complex64)
+    # фильтр (если нужен)
+    if args.mode == "rrc":
+        h = rrc(args.beta, args.sps, args.span)
+        tail = np.zeros(len(h)-1, dtype=np.complex64)
 
-    total_samples = 0
+    total = 0
 
     with open(args.input, "r", encoding="utf-8") as fin, open(args.out, "wb") as fout:
+
         while True:
-            text_chunk = fin.read(args.chunk)
-            if not text_chunk:
+            text = fin.read(args.chunk)
+            if not text:
                 break
 
-            # текст → байты
-            data = text_chunk.encode("utf-8")
+            data = text.encode("utf-8")
 
-            bits = bits_from_bytes(data)
+            bits = bytes_to_bits(data)
             symbols = bits_to_qpsk(bits)
             up = upsample(symbols, args.sps)
 
-            # FIR с сохранением состояния
-            x = np.concatenate([fir_tail, up])
-            y = np.convolve(x, h, mode='valid')
+            if args.mode == "ideal":
+                y = up
 
-            fir_tail = x[-(len(h)-1):]
+            else:  # RRC
+                x = np.concatenate([tail, up])
+                y = np.convolve(x, h, mode="valid")
+                tail = x[-(len(h)-1):]
 
             save_iq(fout, y)
-            total_samples += len(y)
+            total += len(y)
 
-    print(f"Done. Total samples: {total_samples}")
-    print(f"Output file: {args.out}")
-    print(f"Sample rate: {args.fs}")
+        if args.mode == "rrc":
+            # Flush filter state with trailing zeros so RX can recover tail symbols.
+            x_flush = np.concatenate([tail, np.zeros(len(h)-1, dtype=np.complex64)])
+            y_flush = np.convolve(x_flush, h, mode="valid")
+            save_iq(fout, y_flush)
+            total += len(y_flush)
+
+    print("Done")
+    print(f"Samples: {total}")
+    print(f"Mode: {args.mode}")
+    print(f"Output: {args.out}")
+
 
 if __name__ == "__main__":
     main()

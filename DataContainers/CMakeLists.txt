@@ -10,6 +10,7 @@ add_library(${PROJECT_NAME} SHARED
     src/GpuSignal.cpp
     src/CpuFloatSignal.cpp
     src/CpuComplexSignal.cpp
+    src/CpuByteSignal.cpp
 )
 
 
