@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -57,7 +58,7 @@ bool resolveFreqBins(size_t fftSize,
     return false;
 }
 
-const std::array<cv::Vec3b, 256>& plasmaLut()
+const std::array<cv::Vec3b, 256>& blueYellowLut()
 {
     static const std::array<cv::Vec3b, 256> lut = [] {
         std::array<cv::Vec3b, 256> values{};
@@ -67,7 +68,7 @@ const std::array<cv::Vec3b, 256>& plasmaLut()
         }
 
         cv::Mat colored;
-        cv::applyColorMap(gray, colored, cv::COLORMAP_PLASMA);
+        cv::applyColorMap(gray, colored, cv::COLORMAP_PARULA);
         for (int i = 0; i < 256; ++i) {
             values[static_cast<size_t>(i)] = colored.at<cv::Vec3b>(0, i);
         }
@@ -76,25 +77,18 @@ const std::array<cv::Vec3b, 256>& plasmaLut()
     return lut;
 }
 
-cv::Vec3b colorizeLevel(float normalized)
-{
-    const float t = std::clamp(normalized, 0.0f, 1.0f);
-    const float gammaCorrected = std::pow(t, 0.8f);
-    const int idx = static_cast<int>(std::round(gammaCorrected * 255.0f));
-    return plasmaLut()[static_cast<size_t>(std::clamp(idx, 0, 255))];
-}
-
-cv::Vec3b maskedBackground(float normalized)
-{
-    const float t = std::clamp(normalized, 0.0f, 1.0f);
-    const float base = std::pow(t, 1.6f);
-    const unsigned char b = static_cast<unsigned char>(std::round(18.0f + 24.0f * base));
-    const unsigned char g = static_cast<unsigned char>(std::round(6.0f + 10.0f * base));
-    const unsigned char r = static_cast<unsigned char>(std::round(16.0f + 28.0f * base));
-    return cv::Vec3b(b, g, r);
-}
-
 } // namespace
+
+bool renderSpectrogramImageCuda(
+    const float* input,
+    unsigned char* outputBgr,
+    size_t rows,
+    size_t cols,
+    float minValue,
+    float maxValue,
+    bool hasMaskBelowDb,
+    float maskBelowDb,
+    const unsigned char* colorLut);
 
 IModule* createModule() {
     return new SpectrogramPlot();
@@ -103,7 +97,17 @@ IModule* createModule() {
 SpectrogramPlot::SpectrogramPlot()
     : IModule({"SpectrogramPlot", "SpectrogramPlot-module.so", "SpectrogramPlot.json"}) {}
 
-SpectrogramPlot::~SpectrogramPlot() = default;
+SpectrogramPlot::~SpectrogramPlot() {
+    if (m_gpuImageBuffer) {
+        cudaFree(m_gpuImageBuffer);
+        m_gpuImageBuffer = nullptr;
+        m_gpuImageCapacity = 0;
+    }
+    if (m_gpuColorLut) {
+        cudaFree(m_gpuColorLut);
+        m_gpuColorLut = nullptr;
+    }
+}
 
 bool SpectrogramPlot::init() {
     return true;
@@ -160,47 +164,104 @@ bool SpectrogramPlot::run() {
         return false;
     }
 
-    m_hostBuffer.resize(totalSize);
-    const auto copyErr = cudaMemcpy(
-        m_hostBuffer.data(),
-        m_data->getDeviceData(),
-        totalSize * sizeof(float),
-        cudaMemcpyDeviceToHost);
-    if (copyErr != cudaSuccess) {
-        ERROR << "SpectrogramPlot::run: cudaMemcpy failed: " << cudaGetErrorString(copyErr) << std::endl;
-        return false;
-    }
-
     float minValue = 0.0f;
     float maxValue = 0.0f;
     if (m_hasDbRange) {
         minValue = static_cast<float>(m_dbMin);
         maxValue = static_cast<float>(m_dbMax);
     } else {
+        m_hostBuffer.resize(totalSize);
+        const auto copyErr = cudaMemcpy(
+            m_hostBuffer.data(),
+            m_data->getDeviceData(),
+            totalSize * sizeof(float),
+            cudaMemcpyDeviceToHost);
+        if (copyErr != cudaSuccess) {
+            ERROR << "SpectrogramPlot::run: cudaMemcpy failed: " << cudaGetErrorString(copyErr) << std::endl;
+            return false;
+        }
+
         const auto [minIt, maxIt] = std::minmax_element(m_hostBuffer.begin(), m_hostBuffer.end());
         minValue = *minIt;
         maxValue = *maxIt;
     }
-    const float range = std::max(maxValue - minValue, 1.0e-12f);
     DEBUG << "SpectrogramPlot::run: dB range in frame min=" << minValue
           << ", max=" << maxValue
           << (m_hasMaskBelowDb ? (", mask below=" + std::to_string(m_maskBelowDb)) : "")
           << std::endl;
 
-    cv::Mat image(static_cast<int>(rows), static_cast<int>(m_freqBins), CV_8UC3);
-
-    for (size_t y = 0; y < rows; ++y) {
-        const size_t dstY = rows - 1 - y;
-        auto* rowPtr = image.ptr<cv::Vec3b>(static_cast<int>(dstY));
-        for (size_t x = 0; x < m_freqBins; ++x) {
-            const float raw = m_hostBuffer[(y * m_freqBins) + x];
-            const float normalized = std::clamp((raw - minValue) / range, 0.0f, 1.0f);
-            if (m_hasMaskBelowDb && raw < static_cast<float>(m_maskBelowDb)) {
-                rowPtr[x] = maskedBackground(normalized);
-                continue;
-            }
-            rowPtr[x] = colorizeLevel(normalized);
+    if (m_colorLutHost.empty()) {
+        m_colorLutHost.resize(256 * 3);
+        const auto& lut = blueYellowLut();
+        for (size_t iLut = 0; iLut < 256; ++iLut) {
+            const auto& color = lut[iLut];
+            m_colorLutHost[(iLut * 3) + 0] = color[0];
+            m_colorLutHost[(iLut * 3) + 1] = color[1];
+            m_colorLutHost[(iLut * 3) + 2] = color[2];
         }
+    }
+
+    if (!m_gpuColorLut) {
+        const auto lutBytes = m_colorLutHost.size() * sizeof(unsigned char);
+        const auto allocErr = cudaMalloc(reinterpret_cast<void**>(&m_gpuColorLut), lutBytes);
+        if (allocErr != cudaSuccess) {
+            ERROR << "SpectrogramPlot::run: failed to allocate GPU LUT: "
+                  << cudaGetErrorString(allocErr) << std::endl;
+            return false;
+        }
+        const auto copyLutErr = cudaMemcpy(
+            m_gpuColorLut,
+            m_colorLutHost.data(),
+            lutBytes,
+            cudaMemcpyHostToDevice);
+        if (copyLutErr != cudaSuccess) {
+            ERROR << "SpectrogramPlot::run: failed to upload LUT: "
+                  << cudaGetErrorString(copyLutErr) << std::endl;
+            return false;
+        }
+    }
+
+    const size_t imageBytes = rows * m_freqBins * 3;
+    if (!m_gpuImageBuffer || m_gpuImageCapacity < imageBytes) {
+        if (m_gpuImageBuffer) {
+            cudaFree(m_gpuImageBuffer);
+            m_gpuImageBuffer = nullptr;
+            m_gpuImageCapacity = 0;
+        }
+
+        const auto allocErr = cudaMalloc(reinterpret_cast<void**>(&m_gpuImageBuffer), imageBytes);
+        if (allocErr != cudaSuccess) {
+            ERROR << "SpectrogramPlot::run: failed to allocate GPU image buffer: "
+                  << cudaGetErrorString(allocErr) << std::endl;
+            return false;
+        }
+        m_gpuImageCapacity = imageBytes;
+    }
+
+    if (!renderSpectrogramImageCuda(
+            m_data->getDeviceData(),
+            m_gpuImageBuffer,
+            rows,
+            m_freqBins,
+            minValue,
+            maxValue,
+            m_hasMaskBelowDb,
+            static_cast<float>(m_maskBelowDb),
+            m_gpuColorLut)) {
+        ERROR << "SpectrogramPlot::run: CUDA render failed." << std::endl;
+        return false;
+    }
+
+    cv::Mat image(static_cast<int>(rows), static_cast<int>(m_freqBins), CV_8UC3);
+    const auto imageCopyErr = cudaMemcpy(
+        image.data,
+        m_gpuImageBuffer,
+        imageBytes,
+        cudaMemcpyDeviceToHost);
+    if (imageCopyErr != cudaSuccess) {
+        ERROR << "SpectrogramPlot::run: failed to download image from GPU: "
+              << cudaGetErrorString(imageCopyErr) << std::endl;
+        return false;
     }
 
     const int topMargin = 30;

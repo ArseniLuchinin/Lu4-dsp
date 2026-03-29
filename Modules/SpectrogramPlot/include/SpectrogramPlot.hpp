@@ -5,6 +5,7 @@
 #include <GpuFloatSignal.hpp>
 
 #include <any>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -46,6 +47,10 @@ private:
     std::shared_ptr<IData> m_transitData;
     std::shared_ptr<GpuFloatSignal> m_data;
     std::vector<float> m_hostBuffer;
+    std::vector<unsigned char> m_colorLutHost;
+    unsigned char* m_gpuColorLut = nullptr;
+    unsigned char* m_gpuImageBuffer = nullptr;
+    size_t m_gpuImageCapacity = 0;
 };
 
 #endif

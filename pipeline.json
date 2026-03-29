@@ -5,11 +5,11 @@
       "name": "FIR coefficients conveyor",
       "modules": [
         {
-          "name": "BandPassComputeComplex",
+          "name": "BandPassCompute",
           "params": {
             "sample rate": "$SAMPLE_RATE",
             "filter order": 8191,
-            "low cutoff":  -120000.0,
+            "low cutoff":  110000.0,
             "high cutoff":  250000.0
           }
         },
@@ -54,9 +54,9 @@
             "centered spectrum": true,
             "freq min": -1048576.0,
             "freq max": 1048576.0,
-            "db min": -120.0,
-            "db max": -10.0,
-            "mask below db" : -10.0,
+            "db min": -90.0,
+            "db max": -20.0,
+            "mask below db" : -30.0,
             "save path": "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogramm_filtered_"
           }
         }
