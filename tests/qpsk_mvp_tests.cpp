@@ -8,11 +8,10 @@
 #include <RRCCompute.hpp>
 #include <TextFileWriter.hpp>
 
-#include <CpuByteSignal.hpp>
-#include <CpuComplexSignal.hpp>
-#include <CpuFloatSignal.hpp>
 #include <EmptyContainer.hpp>
+#include <GpuByteSignal.hpp>
 #include <GpuComplexSignal.hpp>
+#include <GpuFloatSignal.hpp>
 #include <VirtualTransmitter.hpp>
 #include <cuda_runtime.h>
 
@@ -43,15 +42,6 @@ bool isCudaAvailable()
     return cudaGetDeviceCount(&deviceCount) == cudaSuccess && deviceCount > 0;
 }
 
-std::shared_ptr<CpuComplexSignal> makeCpuComplex(const std::vector<std::pair<float, float>>& values)
-{
-    auto* raw = new cuComplex[values.size()];
-    for (size_t i = 0; i < values.size(); ++i) {
-        raw[i] = make_cuComplex(values[i].first, values[i].second);
-    }
-    return std::make_shared<CpuComplexSignal>(raw, values.size());
-}
-
 std::shared_ptr<GpuComplexFloatSignal> makeGpuComplex(const std::vector<std::pair<float, float>>& values)
 {
     std::vector<cuComplex> host(values.size());
@@ -62,6 +52,75 @@ std::shared_ptr<GpuComplexFloatSignal> makeGpuComplex(const std::vector<std::pai
     auto gpu = std::make_shared<GpuComplexFloatSignal>(host.size());
     gpu->setDataFromHost(host.data(), host.size());
     return gpu;
+}
+
+std::shared_ptr<GpuByteSignal> makeGpuBytes(const std::vector<uint8_t>& values)
+{
+    auto gpu = std::make_shared<GpuByteSignal>(std::max<size_t>(size_t(1), values.size()));
+    if (!gpu || !gpu->isValid()) {
+        return std::make_shared<GpuByteSignal>();
+    }
+
+    if (!values.empty()) {
+        auto host = values;
+        gpu->setDataFromHost(host.data(), host.size());
+    } else {
+        gpu->setLogicalSize(0);
+    }
+    return gpu;
+}
+
+std::vector<uint8_t> downloadGpuBytes(const std::shared_ptr<GpuByteSignal>& data)
+{
+    if (!data || !data->isValid() || !data->getDeviceData()) {
+        return {};
+    }
+
+    std::vector<uint8_t> out(data->size());
+    if (!out.empty()) {
+        const auto err = cudaMemcpy(out.data(), data->getDeviceData(), out.size() * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            return {};
+        }
+    }
+    return out;
+}
+
+std::vector<cuComplex> downloadGpuComplex(const std::shared_ptr<GpuComplexFloatSignal>& data)
+{
+    if (!data || !data->isValid() || !data->getDeviceData()) {
+        return {};
+    }
+
+    std::vector<cuComplex> out(data->size());
+    if (!out.empty()) {
+        const auto err = cudaMemcpy(out.data(), data->getDeviceData(), out.size() * sizeof(cuComplex), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            return {};
+        }
+    }
+    return out;
+}
+
+float downloadSingleGpuFloat(const std::shared_ptr<GpuFloatSignal>& data, bool* ok = nullptr)
+{
+    if (ok) {
+        *ok = false;
+    }
+    if (!data || !data->isValid() || data->size() == 0 || !data->getDeviceData()) {
+        return 0.0f;
+    }
+
+    float value = 0.0f;
+    const auto err = cudaMemcpy(&value, data->getDeviceData(), sizeof(float), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        return 0.0f;
+    }
+
+    if (ok) {
+        *ok = true;
+    }
+    return value;
 }
 
 std::vector<uint8_t> bytesToMsbBits(const std::vector<uint8_t>& bytes)
@@ -78,7 +137,7 @@ std::vector<uint8_t> bytesToMsbBits(const std::vector<uint8_t>& bytes)
     return bits;
 }
 
-std::shared_ptr<CpuComplexSignal> makePhaseShiftedQpskSymbols(const std::vector<uint8_t>& bytes, const float phase)
+std::shared_ptr<GpuComplexFloatSignal> makePhaseShiftedQpskSymbols(const std::vector<uint8_t>& bytes, const float phase)
 {
     const std::vector<uint8_t> bits = bytesToMsbBits(bytes);
     const float invSqrt2 = 1.0f / std::sqrt(2.0f);
@@ -99,31 +158,45 @@ std::shared_ptr<CpuComplexSignal> makePhaseShiftedQpskSymbols(const std::vector<
         raw[i].y = (iComp * s) + (qComp * c);
     }
 
-    return std::make_shared<CpuComplexSignal>(raw, symbolCount);
+    std::vector<std::pair<float, float>> hostPairs;
+    hostPairs.reserve(symbolCount);
+    for (size_t i = 0; i < symbolCount; ++i) {
+        hostPairs.emplace_back(raw[i].x, raw[i].y);
+    }
+    delete[] raw;
+    return makeGpuComplex(hostPairs);
 }
 
-std::shared_ptr<CpuComplexSignal> scaleSymbols(
-    const std::shared_ptr<CpuComplexSignal>& in,
+std::shared_ptr<GpuComplexFloatSignal> scaleSymbols(
+    const std::shared_ptr<GpuComplexFloatSignal>& in,
     const std::vector<float>& amplitudes)
 {
-    if (!in || !in->getData()) {
-        return std::make_shared<CpuComplexSignal>();
+    if (!in || !in->getDeviceData()) {
+        return std::make_shared<GpuComplexFloatSignal>();
     }
 
-    const size_t n = in->size();
-    auto* raw = new cuComplex[n];
+    std::vector<cuComplex> host = downloadGpuComplex(in);
+    const size_t n = host.size();
+    if (n == 0 && in->size() != 0) {
+        return std::make_shared<GpuComplexFloatSignal>();
+    }
 
     for (size_t i = 0; i < n; ++i) {
         const float amp = amplitudes.empty() ? 1.0f : amplitudes[i % amplitudes.size()];
-        raw[i].x = in->getData()[i].x * amp;
-        raw[i].y = in->getData()[i].y * amp;
+        host[i].x *= amp;
+        host[i].y *= amp;
     }
 
-    return std::make_shared<CpuComplexSignal>(raw, n);
+    std::vector<std::pair<float, float>> out;
+    out.reserve(n);
+    for (const auto& s : host) {
+        out.emplace_back(s.x, s.y);
+    }
+    return makeGpuComplex(out);
 }
 
 std::vector<std::pair<float, float>> oversampleWithOffset(
-    const std::shared_ptr<CpuComplexSignal>& symbols,
+    const std::shared_ptr<GpuComplexFloatSignal>& symbols,
     const int samplesPerSymbol,
     const int offset)
 {
@@ -131,13 +204,18 @@ std::vector<std::pair<float, float>> oversampleWithOffset(
     const size_t outSize = static_cast<size_t>(offset) + (symbolCount * static_cast<size_t>(samplesPerSymbol));
     std::vector<std::pair<float, float>> out(outSize, {0.0f, 0.0f});
 
-    if (!symbols || !symbols->getData()) {
+    if (!symbols || !symbols->getDeviceData()) {
+        return out;
+    }
+
+    const auto host = downloadGpuComplex(symbols);
+    if (host.size() != symbolCount) {
         return out;
     }
 
     for (size_t i = 0; i < symbolCount; ++i) {
         const size_t idx = static_cast<size_t>(offset) + (i * static_cast<size_t>(samplesPerSymbol));
-        out[idx] = {symbols->getData()[i].x, symbols->getData()[i].y};
+        out[idx] = {host[i].x, host[i].y};
     }
 
     return out;
@@ -189,25 +267,33 @@ TEST(QpskMvpTest, DecimatorKeepsPhaseAcrossBlocks)
     })));
     ASSERT_TRUE(module.run());
 
-    auto out1 = std::dynamic_pointer_cast<CpuComplexSignal>(module.getData());
+    auto out1 = std::dynamic_pointer_cast<GpuComplexFloatSignal>(module.getData());
     ASSERT_NE(out1, nullptr);
     ASSERT_EQ(out1->size(), size_t(1));
-    EXPECT_FLOAT_EQ(out1->getData()[0].x, 1.0f);
+    const auto out1Host = downloadGpuComplex(out1);
+    ASSERT_EQ(out1Host.size(), size_t(1));
+    EXPECT_FLOAT_EQ(out1Host[0].x, 1.0f);
 
     ASSERT_TRUE(module.setData(makeGpuComplex({
         {5.0f, 0.0f}, {6.0f, 0.0f}, {7.0f, 0.0f}, {8.0f, 0.0f}, {9.0f, 0.0f}
     })));
     ASSERT_TRUE(module.run());
 
-    auto out2 = std::dynamic_pointer_cast<CpuComplexSignal>(module.getData());
+    auto out2 = std::dynamic_pointer_cast<GpuComplexFloatSignal>(module.getData());
     ASSERT_NE(out2, nullptr);
     ASSERT_EQ(out2->size(), size_t(2));
-    EXPECT_FLOAT_EQ(out2->getData()[0].x, 5.0f);
-    EXPECT_FLOAT_EQ(out2->getData()[1].x, 9.0f);
+    const auto out2Host = downloadGpuComplex(out2);
+    ASSERT_EQ(out2Host.size(), size_t(2));
+    EXPECT_FLOAT_EQ(out2Host[0].x, 5.0f);
+    EXPECT_FLOAT_EQ(out2Host[1].x, 9.0f);
 }
 
 TEST(QpskMvpTest, CarrierPhaseEstimatorUsesFourthPower)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     CarrierPhaseEstimator module;
     module.setParam("phase tag", std::string("phase_test_tag_1"));
     ASSERT_TRUE(module.init());
@@ -221,38 +307,49 @@ TEST(QpskMvpTest, CarrierPhaseEstimatorUsesFourthPower)
         symbols.emplace_back(std::cos(a) * amp * std::sqrt(2.0f), std::sin(a) * amp * std::sqrt(2.0f));
     }
 
-    ASSERT_TRUE(module.setData(makeCpuComplex(symbols)));
+    ASSERT_TRUE(module.setData(makeGpuComplex(symbols)));
     ASSERT_TRUE(module.run());
 
     VirtualTransmitter tx;
-    auto phaseData = std::dynamic_pointer_cast<CpuFloatSignal>(tx.waitRxData("phase_test_tag_1"));
+    auto phaseData = std::dynamic_pointer_cast<GpuFloatSignal>(tx.waitRxData("phase_test_tag_1"));
     ASSERT_NE(phaseData, nullptr);
     ASSERT_EQ(phaseData->size(), size_t(1));
 
-    const float measured = phaseData->getData()[0];
+    bool phaseOk = false;
+    const float measured = downloadSingleGpuFloat(phaseData, &phaseOk);
+    ASSERT_TRUE(phaseOk);
     const float wrappedErr = std::remainder(measured - phi, static_cast<float>(M_PI_2));
     EXPECT_NEAR(wrappedErr, 0.0f, 1.0e-3f);
 }
 
 TEST(QpskMvpTest, CarrierPhaseEstimator_EmptyInput_ProducesZeroPhase)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     CarrierPhaseEstimator module;
     module.setParam("phase tag", std::string("phase_test_tag_empty"));
     ASSERT_TRUE(module.init());
 
-    ASSERT_TRUE(module.setData(makeCpuComplex({})));
+    ASSERT_TRUE(module.setData(makeGpuComplex({})));
     ASSERT_TRUE(module.run());
 
     VirtualTransmitter tx;
-    auto phaseData = std::dynamic_pointer_cast<CpuFloatSignal>(tx.waitRxData("phase_test_tag_empty"));
+    auto phaseData = std::dynamic_pointer_cast<GpuFloatSignal>(tx.waitRxData("phase_test_tag_empty"));
     ASSERT_NE(phaseData, nullptr);
     ASSERT_EQ(phaseData->size(), size_t(1));
-    ASSERT_NE(phaseData->getData(), nullptr);
-    EXPECT_FLOAT_EQ(phaseData->getData()[0], 0.0f);
+    bool phaseOk = false;
+    EXPECT_FLOAT_EQ(downloadSingleGpuFloat(phaseData, &phaseOk), 0.0f);
+    ASSERT_TRUE(phaseOk);
 }
 
 TEST(QpskMvpTest, CarrierPhaseEstimator_AmplitudeImbalance_StillEstimatesPhase)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     CarrierPhaseEstimator module;
     module.setParam("phase tag", std::string("phase_test_tag_amp_imbalance"));
     ASSERT_TRUE(module.init());
@@ -266,18 +363,22 @@ TEST(QpskMvpTest, CarrierPhaseEstimator_AmplitudeImbalance_StillEstimatesPhase)
     ASSERT_TRUE(module.run());
 
     VirtualTransmitter tx;
-    auto phaseData = std::dynamic_pointer_cast<CpuFloatSignal>(tx.waitRxData("phase_test_tag_amp_imbalance"));
+    auto phaseData = std::dynamic_pointer_cast<GpuFloatSignal>(tx.waitRxData("phase_test_tag_amp_imbalance"));
     ASSERT_NE(phaseData, nullptr);
     ASSERT_EQ(phaseData->size(), size_t(1));
-    ASSERT_NE(phaseData->getData(), nullptr);
-
-    const float measured = phaseData->getData()[0];
+    bool phaseOk = false;
+    const float measured = downloadSingleGpuFloat(phaseData, &phaseOk);
+    ASSERT_TRUE(phaseOk);
     const float wrappedErr = std::remainder(measured - phi, static_cast<float>(M_PI_2));
     EXPECT_NEAR(wrappedErr, 0.0f, 3.0e-3f);
 }
 
 TEST(QpskMvpTest, CarrierPhaseEstimator_PhaseWrapAround_NearPiOver4)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     CarrierPhaseEstimator module;
     module.setParam("phase tag", std::string("phase_test_tag_wrap"));
     ASSERT_TRUE(module.init());
@@ -293,12 +394,12 @@ TEST(QpskMvpTest, CarrierPhaseEstimator_PhaseWrapAround_NearPiOver4)
         ASSERT_TRUE(module.setData(makePhaseShiftedQpskSymbols(bytes, phi)));
         ASSERT_TRUE(module.run());
 
-        auto phaseData = std::dynamic_pointer_cast<CpuFloatSignal>(tx.waitRxData("phase_test_tag_wrap"));
+        auto phaseData = std::dynamic_pointer_cast<GpuFloatSignal>(tx.waitRxData("phase_test_tag_wrap"));
         ASSERT_NE(phaseData, nullptr);
         ASSERT_EQ(phaseData->size(), size_t(1));
-        ASSERT_NE(phaseData->getData(), nullptr);
-
-        const float measured = phaseData->getData()[0];
+        bool phaseOk = false;
+        const float measured = downloadSingleGpuFloat(phaseData, &phaseOk);
+        ASSERT_TRUE(phaseOk);
         const float wrappedErr = std::remainder(measured - phi, static_cast<float>(M_PI_2));
         EXPECT_NEAR(wrappedErr, 0.0f, 2.0e-3f);
     }
@@ -306,33 +407,45 @@ TEST(QpskMvpTest, CarrierPhaseEstimator_PhaseWrapAround_NearPiOver4)
 
 TEST(QpskMvpTest, PhaseRotatorCompensatesInputPhase)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     VirtualTransmitter tx;
-    auto* phaseRaw = new float[1];
-    phaseRaw[0] = 0.3f;
-    tx.txData(std::make_shared<CpuFloatSignal>(phaseRaw, 1), "phase_test_tag_2");
+    auto phase = std::make_shared<GpuFloatSignal>(1);
+    float phaseRaw = 0.3f;
+    phase->setDataFromHost(&phaseRaw, 1);
+    tx.txData(phase, "phase_test_tag_2");
 
     PhaseRotator module;
     module.setParam("phase tag", std::string("phase_test_tag_2"));
     ASSERT_TRUE(module.init());
 
     const float inPhase = 0.3f;
-    ASSERT_TRUE(module.setData(makeCpuComplex({{std::cos(inPhase), std::sin(inPhase)}})));
+    ASSERT_TRUE(module.setData(makeGpuComplex({{std::cos(inPhase), std::sin(inPhase)}})));
     ASSERT_TRUE(module.run());
 
-    auto out = std::dynamic_pointer_cast<CpuComplexSignal>(module.getData());
+    auto out = std::dynamic_pointer_cast<GpuComplexFloatSignal>(module.getData());
     ASSERT_NE(out, nullptr);
     ASSERT_EQ(out->size(), size_t(1));
-    EXPECT_NEAR(out->getData()[0].x, 1.0f, 1.0e-5f);
-    EXPECT_NEAR(out->getData()[0].y, 0.0f, 1.0e-5f);
+    const auto hostOut = downloadGpuComplex(out);
+    ASSERT_EQ(hostOut.size(), size_t(1));
+    EXPECT_NEAR(hostOut[0].x, 1.0f, 1.0e-5f);
+    EXPECT_NEAR(hostOut[0].y, 0.0f, 1.0e-5f);
 }
 
 TEST(QpskMvpTest, PhaseRotator_MissingPhaseData_ReturnsFalse_CurrentBehavior)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     PhaseRotator module;
     module.setParam("phase tag", std::string("phase_test_tag_missing_data"));
     ASSERT_TRUE(module.init());
 
-    ASSERT_TRUE(module.setData(makeCpuComplex({{1.0f, 0.0f}, {0.0f, 1.0f}})));
+    ASSERT_TRUE(module.setData(makeGpuComplex({{1.0f, 0.0f}, {0.0f, 1.0f}})));
+    EXPECT_FALSE(module.run());
 }
 
 TEST(QpskMvpTest, DISABLED_PhaseRotator_MissingPhaseData_FallbackZero_TODO)
@@ -341,23 +454,28 @@ TEST(QpskMvpTest, DISABLED_PhaseRotator_MissingPhaseData_FallbackZero_TODO)
     module.setParam("phase tag", std::string("phase_test_tag_missing_data_todo"));
     ASSERT_TRUE(module.init());
 
-    ASSERT_TRUE(module.setData(makeCpuComplex({{0.3f, -0.2f}})));
+    ASSERT_TRUE(module.setData(makeGpuComplex({{0.3f, -0.2f}})));
     ASSERT_TRUE(module.run());
 
-    auto out = std::dynamic_pointer_cast<CpuComplexSignal>(module.getData());
+    auto out = std::dynamic_pointer_cast<GpuComplexFloatSignal>(module.getData());
     ASSERT_NE(out, nullptr);
     ASSERT_EQ(out->size(), size_t(1));
-    ASSERT_NE(out->getData(), nullptr);
-    EXPECT_NEAR(out->getData()[0].x, 0.3f, 1.0e-6f);
-    EXPECT_NEAR(out->getData()[0].y, -0.2f, 1.0e-6f);
+    const auto hostOut = downloadGpuComplex(out);
+    ASSERT_EQ(hostOut.size(), size_t(1));
+    EXPECT_NEAR(hostOut[0].x, 0.3f, 1.0e-6f);
+    EXPECT_NEAR(hostOut[0].y, -0.2f, 1.0e-6f);
 }
 
 TEST(QpskMvpTest, QpskDecisionUsesExpectedGrayQuadrants)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     QPSKDecision module;
     ASSERT_TRUE(module.init());
 
-    ASSERT_TRUE(module.setData(makeCpuComplex({
+    ASSERT_TRUE(module.setData(makeGpuComplex({
         {0.8f, 0.9f},
         {-0.8f, 0.9f},
         {-0.8f, -0.9f},
@@ -365,59 +483,73 @@ TEST(QpskMvpTest, QpskDecisionUsesExpectedGrayQuadrants)
     })));
     ASSERT_TRUE(module.run());
 
-    auto bits = std::dynamic_pointer_cast<CpuByteSignal>(module.getData());
+    auto bits = std::dynamic_pointer_cast<GpuByteSignal>(module.getData());
     ASSERT_NE(bits, nullptr);
 
     const std::vector<uint8_t> expected = {0, 0, 1, 0, 1, 1, 0, 1};
-    EXPECT_EQ(bits->bytes(), expected);
+    EXPECT_EQ(downloadGpuBytes(bits), expected);
 }
 
 TEST(QpskMvpTest, QPSKDecision_Boundary_ZeroFallsToNegativeSide)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     QPSKDecision module;
     ASSERT_TRUE(module.init());
 
-    ASSERT_TRUE(module.setData(makeCpuComplex({
+    ASSERT_TRUE(module.setData(makeGpuComplex({
         {0.0f, 0.8f},
         {0.8f, 0.0f},
         {0.0f, 0.0f}
     })));
     ASSERT_TRUE(module.run());
 
-    auto bits = std::dynamic_pointer_cast<CpuByteSignal>(module.getData());
+    auto bits = std::dynamic_pointer_cast<GpuByteSignal>(module.getData());
     ASSERT_NE(bits, nullptr);
     const std::vector<uint8_t> expected = {
         1, 0, // I==0 -> bit0=1, Q>0 -> bit1=0
         0, 1, // I>0 -> bit0=0, Q==0 -> bit1=1
         1, 1  // I==0, Q==0 -> 1,1
     };
-    EXPECT_EQ(bits->bytes(), expected);
+    EXPECT_EQ(downloadGpuBytes(bits), expected);
 }
 
 TEST(QpskMvpTest, BitPackerMsbFirstAndPendingBits)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     BitPacker module;
     module.setParam("bit order", std::string("msb-first"));
     module.setParam("flush tail", false);
     ASSERT_TRUE(module.init());
 
-    ASSERT_TRUE(module.setData(std::make_shared<CpuByteSignal>(std::vector<uint8_t>{1, 0, 1, 0, 0, 1})));
+    ASSERT_TRUE(module.setData(makeGpuBytes({1, 0, 1, 0, 0, 1})));
     ASSERT_TRUE(module.run());
-    auto out1 = std::dynamic_pointer_cast<CpuByteSignal>(module.getData());
+    auto out1 = std::dynamic_pointer_cast<GpuByteSignal>(module.getData());
     ASSERT_NE(out1, nullptr);
-    EXPECT_TRUE(out1->bytes().empty());
+    EXPECT_TRUE(downloadGpuBytes(out1).empty());
 
-    ASSERT_TRUE(module.setData(std::make_shared<CpuByteSignal>(std::vector<uint8_t>{1, 1, 0, 0})));
+    ASSERT_TRUE(module.setData(makeGpuBytes({1, 1, 0, 0})));
     ASSERT_TRUE(module.run());
-    auto out2 = std::dynamic_pointer_cast<CpuByteSignal>(module.getData());
+    auto out2 = std::dynamic_pointer_cast<GpuByteSignal>(module.getData());
     ASSERT_NE(out2, nullptr);
 
     ASSERT_EQ(out2->size(), size_t(1));
-    EXPECT_EQ(out2->bytes()[0], static_cast<uint8_t>(0b10100111));
+    const auto out2Host = downloadGpuBytes(out2);
+    ASSERT_EQ(out2Host.size(), size_t(1));
+    EXPECT_EQ(out2Host[0], static_cast<uint8_t>(0b10100111));
 }
 
 TEST(QpskMvpTest, TextFileWriterWritesBytesAsIs)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     const std::string path = "/tmp/qpsk_writer_test_" + std::to_string(::getpid()) + ".txt";
 
     TextFileWriter writer;
@@ -425,7 +557,7 @@ TEST(QpskMvpTest, TextFileWriterWritesBytesAsIs)
     ASSERT_TRUE(writer.init());
 
     const std::vector<uint8_t> payload = {'T', 'e', 's', 't', '\n'};
-    ASSERT_TRUE(writer.setData(std::make_shared<CpuByteSignal>(payload)));
+    ASSERT_TRUE(writer.setData(makeGpuBytes(payload)));
     ASSERT_TRUE(writer.run());
 
     std::ifstream in(path, std::ios::binary);
@@ -439,6 +571,10 @@ TEST(QpskMvpTest, TextFileWriterWritesBytesAsIs)
 
 TEST(QpskMvpTest, MiniE2E_QpskChain_InputEqualsOutput_Red)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     const std::vector<uint8_t> inputBytes = {
         'Q', 'P', 'S', 'K', ' ', 'm', 'i', 'n', 'i', ' ', 'e', '2', 'e', '\n'
     };
@@ -471,9 +607,9 @@ TEST(QpskMvpTest, MiniE2E_QpskChain_InputEqualsOutput_Red)
     ASSERT_TRUE(packer.setData(decision.getData()));
     ASSERT_TRUE(packer.run());
 
-    auto decoded = std::dynamic_pointer_cast<CpuByteSignal>(packer.getData());
+    auto decoded = std::dynamic_pointer_cast<GpuByteSignal>(packer.getData());
     ASSERT_NE(decoded, nullptr);
-    EXPECT_EQ(decoded->bytes(), inputBytes);
+    EXPECT_EQ(downloadGpuBytes(decoded), inputBytes);
 }
 
 TEST(QpskMvpTest, DemodMiniE2E_WithDecimatorAndKnownOffset)
@@ -526,9 +662,9 @@ TEST(QpskMvpTest, DemodMiniE2E_WithDecimatorAndKnownOffset)
     ASSERT_TRUE(packer.setData(decision.getData()));
     ASSERT_TRUE(packer.run());
 
-    auto decoded = std::dynamic_pointer_cast<CpuByteSignal>(packer.getData());
+    auto decoded = std::dynamic_pointer_cast<GpuByteSignal>(packer.getData());
     ASSERT_NE(decoded, nullptr);
-    EXPECT_EQ(decoded->bytes(), inputBytes);
+    EXPECT_EQ(downloadGpuBytes(decoded), inputBytes);
 }
 
 TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
@@ -566,9 +702,9 @@ TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
 
     // For generator mode=ideal the source is impulse-like at symbol rate.
     // To validate QPSK demod chain itself, keep FIR stage but run it as identity.
-    auto* tapsRaw = new float[1];
-    tapsRaw[0] = 1.0f;
-    auto identityTaps = std::make_shared<CpuFloatSignal>(tapsRaw, size_t(1));
+    auto identityTaps = std::make_shared<GpuFloatSignal>(1);
+    float oneTap = 1.0f;
+    identityTaps->setDataFromHost(&oneTap, 1);
 
     VirtualTransmitter tx;
     tx.txData(identityTaps, "fir_rrc_coeff_file_e2e");
@@ -636,10 +772,9 @@ TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
         ASSERT_TRUE(packer.setData(decision.getData()));
         ASSERT_TRUE(packer.run());
 
-        auto chunkBytes = std::dynamic_pointer_cast<CpuByteSignal>(packer.getData());
+        auto chunkBytes = std::dynamic_pointer_cast<GpuByteSignal>(packer.getData());
         ASSERT_NE(chunkBytes, nullptr);
-
-        const auto& bytes = chunkBytes->bytes();
+        const auto bytes = downloadGpuBytes(chunkBytes);
         decodedBytes.insert(decodedBytes.end(), bytes.begin(), bytes.end());
     }
 
@@ -760,9 +895,9 @@ TEST(QpskMvpTest, FileE2E_QpskRrc128_InputEqualsOutput)
         ASSERT_TRUE(packer.setData(decision.getData()));
         ASSERT_TRUE(packer.run());
 
-        auto chunkBytes = std::dynamic_pointer_cast<CpuByteSignal>(packer.getData());
+        auto chunkBytes = std::dynamic_pointer_cast<GpuByteSignal>(packer.getData());
         ASSERT_NE(chunkBytes, nullptr);
-        const auto& bytes = chunkBytes->bytes();
+        const auto bytes = downloadGpuBytes(chunkBytes);
         decodedBytes.insert(decodedBytes.end(), bytes.begin(), bytes.end());
     }
 

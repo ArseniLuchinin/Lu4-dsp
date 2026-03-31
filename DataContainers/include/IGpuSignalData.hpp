@@ -7,7 +7,8 @@
 
 enum class GpuSampleType {
     Float32,
-    ComplexFloat32
+    ComplexFloat32,
+    UInt8
 };
 
 /*!

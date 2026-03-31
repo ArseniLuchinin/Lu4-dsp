@@ -1,8 +1,6 @@
 #include <FIR_filter.hpp>
 #include <VariablesResolve.hpp>
 
-#include <CpuComplexSignal.hpp>
-#include <CpuFloatSignal.hpp>
 #include <GpuSignalUtils.hpp>
 
 #include <cstdint>
@@ -38,11 +36,11 @@ bool FIRFilter::init()
         return false;
     }
 
-    auto realTaps = std::dynamic_pointer_cast<CpuFloatSignal>(rxBase);
-    auto complexTaps = std::dynamic_pointer_cast<CpuComplexSignal>(rxBase);
+    auto realTaps = std::dynamic_pointer_cast<GpuFloatSignal>(rxBase);
+    auto complexTaps = std::dynamic_pointer_cast<GpuComplexFloatSignal>(rxBase);
 
     if (!realTaps && !complexTaps) {
-        ERROR << "FIRFilter::init failed: coefficients source must be CpuFloatSignal or CpuComplexSignal." << std::endl;
+        ERROR << "FIRFilter::init failed: coefficients source must be GpuFloatSignal or GpuComplexFloatSignal." << std::endl;
         return false;
     }
 
@@ -67,16 +65,7 @@ bool FIRFilter::init()
             return false;
         }
 
-        m_realTaps = std::make_shared<GpuFloatSignal>(tapsSize);
-        if (!m_realTaps || !m_realTaps->isValid()) {
-            ERROR << "FIRFilter::init failed: unable to allocate GPU real taps." << std::endl;
-            return false;
-        }
-        m_realTaps->setDataFromHost(realTaps->getData(), tapsSize);
-        if (!m_realTaps->isValid()) {
-            ERROR << "FIRFilter::init failed: unable to upload real taps to GPU." << std::endl;
-            return false;
-        }
+        m_realTaps = realTaps;
 
         m_complexTaps.reset();
         m_tapType = TapType::Real;
@@ -86,16 +75,7 @@ bool FIRFilter::init()
             return false;
         }
 
-        m_complexTaps = std::make_shared<GpuComplexFloatSignal>(tapsSize);
-        if (!m_complexTaps || !m_complexTaps->isValid()) {
-            ERROR << "FIRFilter::init failed: unable to allocate GPU complex taps." << std::endl;
-            return false;
-        }
-        m_complexTaps->setDataFromHost(complexTaps->getData(), tapsSize);
-        if (!m_complexTaps->isValid()) {
-            ERROR << "FIRFilter::init failed: unable to upload complex taps to GPU." << std::endl;
-            return false;
-        }
+        m_complexTaps = complexTaps;
 
         m_realTaps.reset();
         m_tapType = TapType::Complex;

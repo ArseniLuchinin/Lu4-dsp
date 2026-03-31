@@ -3,7 +3,7 @@
 
 #include <IModule.hpp>
 
-#include <CpuByteSignal.hpp>
+#include <GpuByteSignal.hpp>
 
 #include <fstream>
 #include <memory>
@@ -26,7 +26,7 @@ private:
 
     std::ofstream m_out;
 
-    std::shared_ptr<CpuByteSignal> m_inData;
+    std::shared_ptr<GpuByteSignal> m_inData;
     std::shared_ptr<IData> m_outData;
 };
 

@@ -20,5 +20,6 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         DataContainers
         Module
+        CUDA::cudart
         logger
 )

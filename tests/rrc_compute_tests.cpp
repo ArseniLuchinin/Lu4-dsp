@@ -1,9 +1,11 @@
 #include <RRCCompute.hpp>
 
-#include <CpuFloatSignal.hpp>
 #include <EmptyContainer.hpp>
+#include <GpuFloatSignal.hpp>
 
 #include <gtest/gtest.h>
+
+#include <cuda_runtime.h>
 
 #include <cmath>
 #include <memory>
@@ -23,10 +25,32 @@ std::unique_ptr<RRCCompute> makeDefaultConfigured()
     return module;
 }
 
-std::shared_ptr<CpuFloatSignal> getSingleOutput(RRCCompute& module)
+bool isCudaAvailable()
+{
+    int deviceCount = 0;
+    return cudaGetDeviceCount(&deviceCount) == cudaSuccess && deviceCount > 0;
+}
+
+std::shared_ptr<GpuFloatSignal> getSingleOutput(RRCCompute& module)
 {
     auto data = module.getData();
-    return std::dynamic_pointer_cast<CpuFloatSignal>(data);
+    return std::dynamic_pointer_cast<GpuFloatSignal>(data);
+}
+
+std::vector<float> downloadGpuFloats(const std::shared_ptr<GpuFloatSignal>& data)
+{
+    if (!data || !data->isValid() || !data->getDeviceData()) {
+        return {};
+    }
+
+    std::vector<float> out(data->size());
+    if (!out.empty()) {
+        const auto err = cudaMemcpy(out.data(), data->getDeviceData(), out.size() * sizeof(float), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            return {};
+        }
+    }
+    return out;
 }
 
 std::vector<float> firFilter(const std::vector<float>& input, const float* taps, size_t tapsCount)
@@ -52,6 +76,10 @@ std::vector<float> firFilter(const std::vector<float>& input, const float* taps,
 
 TEST(RRCComputeTest, InitRunAndTapCountAreValid)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     auto module = makeDefaultConfigured();
     ASSERT_TRUE(module->init());
     ASSERT_TRUE(module->run());
@@ -63,31 +91,39 @@ TEST(RRCComputeTest, InitRunAndTapCountAreValid)
 
 TEST(RRCComputeTest, TapsAreSymmetric)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     auto module = makeDefaultConfigured();
     ASSERT_TRUE(module->init());
 
     auto taps = getSingleOutput(*module);
     ASSERT_NE(taps, nullptr);
 
-    const size_t n = taps->size();
-    const float* coeff = taps->getData();
-    ASSERT_NE(coeff, nullptr);
+    const auto coeff = downloadGpuFloats(taps);
+    const size_t n = coeff.size();
     for (size_t i = 0; i < n / 2; ++i) {
-        EXPECT_NEAR(coeff[i], coeff[n - 1 - i], 1.0e-5);
+        EXPECT_NEAR(coeff[i], coeff[n - 1 - i], 1.0e-5f);
     }
 }
 
 TEST(RRCComputeTest, NormalizedGainSumIsOne)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     auto module = makeDefaultConfigured();
     module->setParam("normalize gain", true);
     ASSERT_TRUE(module->init());
 
     auto taps = getSingleOutput(*module);
     ASSERT_NE(taps, nullptr);
+    const auto coeff = downloadGpuFloats(taps);
+    ASSERT_EQ(coeff.size(), taps->size());
 
     double sum = 0.0;
-    const float* coeff = taps->getData();
     for (size_t i = 0; i < taps->size(); ++i) {
         sum += coeff[i];
     }
@@ -97,6 +133,10 @@ TEST(RRCComputeTest, NormalizedGainSumIsOne)
 
 TEST(RRCComputeTest, RolloffChangesTapShape)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     auto lowAlpha = makeDefaultConfigured();
     lowAlpha->setParam("rolloff", 0.1);
     lowAlpha->setParam("normalize gain", false);
@@ -111,16 +151,25 @@ TEST(RRCComputeTest, RolloffChangesTapShape)
     auto highTaps = getSingleOutput(*highAlpha);
     ASSERT_NE(highTaps, nullptr);
 
-    const size_t center = lowTaps->size() / 2;
-    const size_t probe = center + 4;
-    ASSERT_LT(probe, lowTaps->size());
-    ASSERT_LT(probe, highTaps->size());
+    const auto lowCoeff = downloadGpuFloats(lowTaps);
+    const auto highCoeff = downloadGpuFloats(highTaps);
+    ASSERT_EQ(lowCoeff.size(), lowTaps->size());
+    ASSERT_EQ(highCoeff.size(), highTaps->size());
 
-    EXPECT_GT(std::abs(lowTaps->getData()[probe] - highTaps->getData()[probe]), 1.0e-4f);
+    const size_t center = lowCoeff.size() / 2;
+    const size_t probe = center + 4;
+    ASSERT_LT(probe, lowCoeff.size());
+    ASSERT_LT(probe, highCoeff.size());
+
+    EXPECT_GT(std::abs(lowCoeff[probe] - highCoeff[probe]), 1.0e-4f);
 }
 
 TEST(RRCComputeTest, SingularPointsDoNotProduceNaNOrInf)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     auto module = std::make_unique<RRCCompute>();
     module->setParam("sample rate", int32_t(1'000'000));
     module->setParam("symbol rate", int32_t(250'000));
@@ -132,8 +181,8 @@ TEST(RRCComputeTest, SingularPointsDoNotProduceNaNOrInf)
 
     auto taps = getSingleOutput(*module);
     ASSERT_NE(taps, nullptr);
-    const float* coeff = taps->getData();
-    ASSERT_NE(coeff, nullptr);
+    const auto coeff = downloadGpuFloats(taps);
+    ASSERT_EQ(coeff.size(), taps->size());
     for (size_t i = 0; i < taps->size(); ++i) {
         EXPECT_TRUE(std::isfinite(coeff[i]));
     }
@@ -141,11 +190,15 @@ TEST(RRCComputeTest, SingularPointsDoNotProduceNaNOrInf)
 
 TEST(RRCComputeTest, GetDataReturnsTapsOnlyOnceThenEmptyContainer)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     auto module = makeDefaultConfigured();
     ASSERT_TRUE(module->init());
 
     auto first = module->getData();
-    auto firstTaps = std::dynamic_pointer_cast<CpuFloatSignal>(first);
+    auto firstTaps = std::dynamic_pointer_cast<GpuFloatSignal>(first);
     ASSERT_NE(firstTaps, nullptr);
     EXPECT_GT(firstTaps->size(), size_t(0));
 
@@ -203,6 +256,10 @@ TEST(RRCComputeTest, FailsForNonIntegerSampleToSymbolRateRatioWhenSpsNotSet)
 
 TEST(RRCComputeTest, FilteringConstantSignalConvergesToUnityGain)
 {
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
     auto module = makeDefaultConfigured();
     module->setParam("normalize gain", true);
     ASSERT_TRUE(module->init());
@@ -210,9 +267,11 @@ TEST(RRCComputeTest, FilteringConstantSignalConvergesToUnityGain)
     auto taps = getSingleOutput(*module);
     ASSERT_NE(taps, nullptr);
     ASSERT_GT(taps->size(), size_t(0));
+    const auto coeff = downloadGpuFloats(taps);
+    ASSERT_EQ(coeff.size(), taps->size());
 
     std::vector<float> input(512, 1.0f);
-    const auto output = firFilter(input, taps->getData(), taps->size());
+    const auto output = firFilter(input, coeff.data(), coeff.size());
 
     // Ignore transient edges and check steady-state gain near 1.0.
     const size_t edge = taps->size();

@@ -3,8 +3,8 @@
 
 #include <IModule.hpp>
 
-#include <CpuByteSignal.hpp>
-#include <CpuComplexSignal.hpp>
+#include <GpuByteSignal.hpp>
+#include <GpuComplexSignal.hpp>
 
 #include <memory>
 
@@ -21,8 +21,8 @@ public:
     std::shared_ptr<IData> getData() override;
 
 private:
-    std::shared_ptr<CpuComplexSignal> m_inData;
-    std::shared_ptr<CpuByteSignal> m_outData;
+    std::shared_ptr<GpuComplexFloatSignal> m_inData;
+    std::shared_ptr<GpuByteSignal> m_outData;
 };
 
 #endif // QPSK_DECISION_HPP

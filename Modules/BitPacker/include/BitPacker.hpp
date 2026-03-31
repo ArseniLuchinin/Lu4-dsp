@@ -3,11 +3,11 @@
 
 #include <IModule.hpp>
 
-#include <CpuByteSignal.hpp>
+#include <GpuByteSignal.hpp>
 
+#include <cstddef>
 #include <memory>
 #include <string>
-#include <vector>
 
 class BitPacker : public IModule {
 public:
@@ -27,10 +27,11 @@ private:
     size_t m_discardLeadingBits = 0;
     size_t m_discardLeadingBitsRemaining = 0;
 
-    std::vector<uint8_t> m_pendingBits;
+    std::shared_ptr<GpuByteSignal> m_pendingBitsData;
+    size_t m_pendingBitsCount = 0;
 
-    std::shared_ptr<CpuByteSignal> m_inData;
-    std::shared_ptr<CpuByteSignal> m_outData;
+    std::shared_ptr<GpuByteSignal> m_inData;
+    std::shared_ptr<GpuByteSignal> m_outData;
 };
 
 #endif // BIT_PACKER_HPP

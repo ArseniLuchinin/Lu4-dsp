@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(${PROJECT_NAME} SHARED
     src/Decimator.cpp
+    src/DecimatorCuda.cu
 )
 
 target_include_directories(${PROJECT_NAME}

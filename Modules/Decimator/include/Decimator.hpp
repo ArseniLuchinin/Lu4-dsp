@@ -3,7 +3,6 @@
 
 #include <IModule.hpp>
 
-#include <CpuComplexSignal.hpp>
 #include <GpuComplexSignal.hpp>
 
 #include <memory>
@@ -27,7 +26,7 @@ private:
     bool m_initializedState = false;
 
     std::shared_ptr<GpuComplexFloatSignal> m_inData;
-    std::shared_ptr<CpuComplexSignal> m_outData;
+    std::shared_ptr<GpuComplexFloatSignal> m_outData;
 };
 
 #endif // DECIMATOR_HPP

@@ -219,6 +219,8 @@ bool GpuSignal<T, Tag>::checkData(const T* data) {
 
 #include <GpuFloatSignal.hpp>
 #include <GpuComplexSignal.hpp>
+#include <GpuByteSignal.hpp>
 
 template class GpuSignal<float, gpu_float_tag>;
 template class GpuSignal<cuComplex, gpu_comples_float_tag>;
+template class GpuSignal<uint8_t, gpu_byte_tag>;

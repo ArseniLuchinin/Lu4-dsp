@@ -1,9 +1,12 @@
 #include <PhaseRotator.hpp>
 #include <VariablesResolve.hpp>
 
-#include <CpuFloatSignal.hpp>
+#include <GpuFloatSignal.hpp>
 #include <module.hpp>
 
+#include <cuda_runtime.h>
+
+#include <algorithm>
 #include <cmath>
 
 IModule* createModule() {
@@ -31,9 +34,9 @@ bool PhaseRotator::init() {
 }
 
 bool PhaseRotator::setData(std::shared_ptr<IData> data) {
-    m_inData = std::dynamic_pointer_cast<CpuComplexSignal>(data);
+    m_inData = std::dynamic_pointer_cast<GpuComplexFloatSignal>(data);
     if (!m_inData) {
-        ERROR << "PhaseRotator::setData failed: input must be CpuComplexSignal." << std::endl;
+        ERROR << "PhaseRotator::setData failed: input must be GpuComplexFloatSignal." << std::endl;
         return false;
     }
 
@@ -51,29 +54,75 @@ bool PhaseRotator::run() {
         return false;
     }
 
-    const auto phaseData = std::dynamic_pointer_cast<CpuFloatSignal>(rxData());
-    if (!phaseData || phaseData->size() == 0 || !phaseData->getData()) {
+    const auto phaseData = std::dynamic_pointer_cast<GpuFloatSignal>(rxData());
+    if (!phaseData || phaseData->size() == 0 || !phaseData->getDeviceData()) {
         ERROR << "PhaseRotator::run failed: phase data is missing or invalid." << std::endl;
         return false;
     }
 
-    const float phase = phaseData->getData()[0];
+    float phase = 0.0f;
+    const auto phaseCopyErr = cudaMemcpy(
+        &phase,
+        phaseData->getDeviceData(),
+        sizeof(float),
+        cudaMemcpyDeviceToHost
+    );
+    if (phaseCopyErr != cudaSuccess) {
+        ERROR << "PhaseRotator::run failed: phase cudaMemcpy D2H failed: "
+              << cudaGetErrorString(phaseCopyErr) << std::endl;
+        return false;
+    }
+
     const float c = std::cos(phase);
     const float s = std::sin(phase);
 
     const size_t n = m_inData->size();
-    auto* rotated = new cuComplex[n];
-
-    const cuComplex* in = m_inData->getData();
-    for (size_t i = 0; i < n; ++i) {
-        const float re = in[i].x;
-        const float im = in[i].y;
-
-        rotated[i].x = (re * c) + (im * s);
-        rotated[i].y = (-re * s) + (im * c);
+    auto out = std::make_shared<GpuComplexFloatSignal>(std::max<size_t>(size_t(1), n));
+    if (!out || !out->isValid()) {
+        ERROR << "PhaseRotator::run failed: output allocation failed." << std::endl;
+        return false;
+    }
+    if (!out->setLogicalSize(n)) {
+        ERROR << "PhaseRotator::run failed: unable to set output logical size." << std::endl;
+        return false;
     }
 
-    m_outData = std::make_shared<CpuComplexSignal>(rotated, n);
+    extern cudaError_t launchPhaseRotatorKernel(
+        const cuComplex* in,
+        cuComplex* out,
+        size_t n,
+        float c,
+        float s,
+        int blocks,
+        int threads
+    );
+
+    if (n > 0) {
+        const int threads = 256;
+        const int blocks = static_cast<int>((n + static_cast<size_t>(threads) - 1) / static_cast<size_t>(threads));
+
+        const auto launchErr = launchPhaseRotatorKernel(
+            m_inData->getDeviceData(),
+            out->getDeviceData(),
+            n,
+            c,
+            s,
+            blocks,
+            threads
+        );
+        if (launchErr != cudaSuccess) {
+            ERROR << "PhaseRotator::run failed: kernel launch failed: " << cudaGetErrorString(launchErr) << std::endl;
+            return false;
+        }
+
+        const auto syncErr = cudaDeviceSynchronize();
+        if (syncErr != cudaSuccess) {
+            ERROR << "PhaseRotator::run failed: kernel execution failed: " << cudaGetErrorString(syncErr) << std::endl;
+            return false;
+        }
+    }
+
+    m_outData = out;
     return true;
 }
 

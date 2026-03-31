@@ -5,6 +5,7 @@
 #include <IGpuSignalData.hpp>
 #include <GpuFloatSignal.hpp>
 #include <GpuComplexSignal.hpp>
+#include <GpuByteSignal.hpp>
 
 #include <initializer_list>
 #include <memory>
@@ -112,6 +113,8 @@ inline std::shared_ptr<IGpuSignalData> createLike(const IGpuSignalData& prototyp
         return std::make_shared<GpuFloatSignal>(size);
     case GpuSampleType::ComplexFloat32:
         return std::make_shared<GpuComplexFloatSignal>(size);
+    case GpuSampleType::UInt8:
+        return std::make_shared<GpuByteSignal>(size);
     default:
         return nullptr;
     }

@@ -3,9 +3,39 @@
 
 #include <module.hpp>
 
+#include <cuda_runtime.h>
+
+#include <algorithm>
 #include <cstdint>
 #include <limits>
-#include <vector>
+
+cudaError_t launchBitPackerPackKernel(
+    const uint8_t* pendingBits,
+    size_t pendingCount,
+    const uint8_t* inBits,
+    size_t inCount,
+    size_t drop,
+    size_t fullBytes,
+    size_t remBits,
+    bool hasTail,
+    uint8_t* outBytes,
+    size_t outBytesCount,
+    int blocks,
+    int threads
+);
+
+cudaError_t launchBitPackerPendingKernel(
+    const uint8_t* pendingBits,
+    size_t pendingCount,
+    const uint8_t* inBits,
+    size_t inCount,
+    size_t drop,
+    size_t effectiveBits,
+    uint8_t* nextPendingBits,
+    size_t nextPendingCount,
+    int blocks,
+    int threads
+);
 
 namespace {
 
@@ -66,13 +96,25 @@ bool BitPacker::init() {
     }
 
     m_discardLeadingBitsRemaining = m_discardLeadingBits;
+    m_pendingBitsCount = 0;
+
+    m_pendingBitsData = std::make_shared<GpuByteSignal>(8);
+    if (!m_pendingBitsData || !m_pendingBitsData->isValid()) {
+        ERROR << "BitPacker::init failed: unable to allocate pending bits GPU buffer." << std::endl;
+        return false;
+    }
+    if (!m_pendingBitsData->setLogicalSize(0)) {
+        ERROR << "BitPacker::init failed: unable to set pending bits logical size." << std::endl;
+        return false;
+    }
+
     return true;
 }
 
 bool BitPacker::setData(std::shared_ptr<IData> data) {
-    m_inData = std::dynamic_pointer_cast<CpuByteSignal>(data);
+    m_inData = std::dynamic_pointer_cast<GpuByteSignal>(data);
     if (!m_inData) {
-        ERROR << "BitPacker::setData failed: input must be CpuByteSignal with bits." << std::endl;
+        ERROR << "BitPacker::setData failed: input must be GpuByteSignal with bits." << std::endl;
         return false;
     }
 
@@ -89,48 +131,90 @@ bool BitPacker::run() {
         ERROR << "BitPacker::run failed: input data is null." << std::endl;
         return false;
     }
-
-    std::vector<uint8_t> allBits;
-    allBits.reserve(m_pendingBits.size() + m_inData->size());
-    allBits.insert(allBits.end(), m_pendingBits.begin(), m_pendingBits.end());
-
-    const auto& inBits = m_inData->bytes();
-    for (const uint8_t bit : inBits) {
-        allBits.push_back(bit & 0x01u);
+    if (!m_pendingBitsData || !m_pendingBitsData->isValid()) {
+        ERROR << "BitPacker::run failed: pending bits buffer is not initialized." << std::endl;
+        return false;
     }
 
-    if (m_discardLeadingBitsRemaining > 0 && !allBits.empty()) {
-        const size_t drop = std::min(m_discardLeadingBitsRemaining, allBits.size());
-        allBits.erase(allBits.begin(), allBits.begin() + static_cast<long>(drop));
-        m_discardLeadingBitsRemaining -= drop;
+    const size_t inCount = m_inData->size();
+    const size_t totalBits = m_pendingBitsCount + inCount;
+    const size_t drop = std::min(m_discardLeadingBitsRemaining, totalBits);
+    m_discardLeadingBitsRemaining -= drop;
+
+    const size_t effectiveBits = totalBits - drop;
+    const size_t fullBytes = effectiveBits / 8;
+    const size_t remBits = effectiveBits % 8;
+    const bool hasTail = (m_flushTail && remBits > 0);
+    const size_t outBytesCount = fullBytes + (hasTail ? 1u : 0u);
+    const size_t nextPendingCount = hasTail ? 0u : remBits;
+
+    auto outData = std::make_shared<GpuByteSignal>(std::max<size_t>(size_t(1), outBytesCount));
+    if (!outData || !outData->isValid()) {
+        ERROR << "BitPacker::run failed: output allocation failed." << std::endl;
+        return false;
+    }
+    if (!outData->setLogicalSize(outBytesCount)) {
+        ERROR << "BitPacker::run failed: unable to set output logical size." << std::endl;
+        return false;
     }
 
-    std::vector<uint8_t> outBytes;
-    outBytes.reserve(allBits.size() / 8 + 1);
-
-    size_t idx = 0;
-    while ((idx + 8) <= allBits.size()) {
-        uint8_t byte = 0u;
-        for (size_t i = 0; i < 8; ++i) {
-            byte = static_cast<uint8_t>((byte << 1u) | allBits[idx + i]);
+    if (outBytesCount > 0) {
+        const int threads = 256;
+        const int blocks = static_cast<int>((outBytesCount + static_cast<size_t>(threads) - 1) / static_cast<size_t>(threads));
+        const auto packErr = launchBitPackerPackKernel(
+            m_pendingBitsData->getDeviceData(),
+            m_pendingBitsCount,
+            m_inData->getDeviceData(),
+            inCount,
+            drop,
+            fullBytes,
+            remBits,
+            hasTail,
+            outData->getDeviceData(),
+            outBytesCount,
+            blocks,
+            threads
+        );
+        if (packErr != cudaSuccess) {
+            ERROR << "BitPacker::run failed: pack kernel launch failed: " << cudaGetErrorString(packErr) << std::endl;
+            return false;
         }
-        outBytes.push_back(byte);
-        idx += 8;
     }
 
-    m_pendingBits.assign(allBits.begin() + static_cast<long>(idx), allBits.end());
-
-    if (m_flushTail && !m_pendingBits.empty()) {
-        uint8_t byte = 0u;
-        for (const uint8_t bit : m_pendingBits) {
-            byte = static_cast<uint8_t>((byte << 1u) | (bit & 0x01u));
+    if (nextPendingCount > 0) {
+        const int threads = 256;
+        const int blocks = static_cast<int>((nextPendingCount + static_cast<size_t>(threads) - 1) / static_cast<size_t>(threads));
+        const auto pendingErr = launchBitPackerPendingKernel(
+            m_pendingBitsData->getDeviceData(),
+            m_pendingBitsCount,
+            m_inData->getDeviceData(),
+            inCount,
+            drop,
+            effectiveBits,
+            m_pendingBitsData->getDeviceData(),
+            nextPendingCount,
+            blocks,
+            threads
+        );
+        if (pendingErr != cudaSuccess) {
+            ERROR << "BitPacker::run failed: pending kernel launch failed: " << cudaGetErrorString(pendingErr) << std::endl;
+            return false;
         }
-        byte = static_cast<uint8_t>(byte << static_cast<uint8_t>(8 - m_pendingBits.size()));
-        outBytes.push_back(byte);
-        m_pendingBits.clear();
     }
 
-    m_outData = std::make_shared<CpuByteSignal>(std::move(outBytes));
+    const auto syncErr = cudaDeviceSynchronize();
+    if (syncErr != cudaSuccess) {
+        ERROR << "BitPacker::run failed: kernel execution failed: " << cudaGetErrorString(syncErr) << std::endl;
+        return false;
+    }
+
+    m_pendingBitsCount = nextPendingCount;
+    if (!m_pendingBitsData->setLogicalSize(m_pendingBitsCount)) {
+        ERROR << "BitPacker::run failed: unable to set pending bits logical size." << std::endl;
+        return false;
+    }
+
+    m_outData = outData;
     return true;
 }
 

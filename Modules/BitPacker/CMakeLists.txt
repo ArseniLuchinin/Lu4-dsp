@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(${PROJECT_NAME} SHARED
     src/BitPacker.cpp
+    src/BitPackerCuda.cu
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -20,5 +21,6 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         DataContainers
         Module
+        CUDA::cudart
         logger
 )

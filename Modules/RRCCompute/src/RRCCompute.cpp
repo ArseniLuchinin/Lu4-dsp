@@ -187,7 +187,16 @@ bool RRCCompute::init() {
         }
     }
 
-    m_data = std::make_shared<CpuFloatSignal>(taps.release(), static_cast<size_t>(tapsCount));
+    m_data = std::make_shared<GpuFloatSignal>(static_cast<size_t>(tapsCount));
+    if (!m_data || !m_data->isValid()) {
+        ERROR << "RRCCompute::init failed: unable to allocate GPU taps buffer." << std::endl;
+        return false;
+    }
+    m_data->setDataFromHost(taps.get(), static_cast<size_t>(tapsCount));
+    if (!m_data->isValid()) {
+        ERROR << "RRCCompute::init failed: unable to upload taps to GPU." << std::endl;
+        return false;
+    }
     m_isComputed = false;
     return m_data && m_data->isValid();
 }

@@ -1,7 +1,7 @@
 #ifndef RRC_COMPUTE_HPP
 #define RRC_COMPUTE_HPP
 
-#include <CpuFloatSignal.hpp>
+#include <GpuFloatSignal.hpp>
 #include <IModule.hpp>
 #include <IVirtualRX.hpp>
 
@@ -26,7 +26,7 @@ private:
     bool m_samplesPerSymbolExplicit = false;
     bool m_normalizeGain = true;
 
-    std::shared_ptr<CpuFloatSignal> m_data;
+    std::shared_ptr<GpuFloatSignal> m_data;
     bool m_isComputed = false;
 };
 

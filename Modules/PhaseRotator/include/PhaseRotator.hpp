@@ -4,7 +4,7 @@
 #include <IModule.hpp>
 #include <IVirtualRX.hpp>
 
-#include <CpuComplexSignal.hpp>
+#include <GpuComplexSignal.hpp>
 
 #include <memory>
 #include <string>
@@ -24,8 +24,8 @@ public:
 private:
     std::string m_phaseTag = "qpsk_phase";
 
-    std::shared_ptr<CpuComplexSignal> m_inData;
-    std::shared_ptr<CpuComplexSignal> m_outData;
+    std::shared_ptr<GpuComplexFloatSignal> m_inData;
+    std::shared_ptr<GpuComplexFloatSignal> m_outData;
 };
 
 #endif // PHASE_ROTATOR_HPP

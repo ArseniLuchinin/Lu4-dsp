@@ -4,6 +4,7 @@
 #include <IGpuSignalData.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <cuComplex.h>
 
 template<typename T>
@@ -17,6 +18,11 @@ struct GpuSampleTypeTraits<float> {
 template<>
 struct GpuSampleTypeTraits<cuComplex> {
     static constexpr GpuSampleType value = GpuSampleType::ComplexFloat32;
+};
+
+template<>
+struct GpuSampleTypeTraits<uint8_t> {
+    static constexpr GpuSampleType value = GpuSampleType::UInt8;
 };
 
 template<typename T, typename Tag>

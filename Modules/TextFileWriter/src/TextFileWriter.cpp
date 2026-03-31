@@ -4,6 +4,9 @@
 #include <module.hpp>
 
 #include <cstdint>
+#include <vector>
+
+#include <cuda_runtime.h>
 
 IModule* createModule() {
     return new TextFileWriter();
@@ -35,9 +38,9 @@ bool TextFileWriter::init() {
 }
 
 bool TextFileWriter::setData(std::shared_ptr<IData> data) {
-    m_inData = std::dynamic_pointer_cast<CpuByteSignal>(data);
+    m_inData = std::dynamic_pointer_cast<GpuByteSignal>(data);
     if (!m_inData) {
-        ERROR << "TextFileWriter::setData failed: input must be CpuByteSignal with bytes." << std::endl;
+        ERROR << "TextFileWriter::setData failed: input must be GpuByteSignal with bytes." << std::endl;
         return false;
     }
 
@@ -61,9 +64,21 @@ bool TextFileWriter::run() {
         return false;
     }
 
-    const auto& bytes = m_inData->bytes();
-    if (!bytes.empty()) {
-        m_out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    std::vector<uint8_t> hostBytes(m_inData->size());
+    if (!hostBytes.empty()) {
+        const auto copyErr = cudaMemcpy(
+            hostBytes.data(),
+            m_inData->getDeviceData(),
+            hostBytes.size() * sizeof(uint8_t),
+            cudaMemcpyDeviceToHost
+        );
+        if (copyErr != cudaSuccess) {
+            ERROR << "TextFileWriter::run failed: cudaMemcpy D2H failed: "
+                  << cudaGetErrorString(copyErr) << std::endl;
+            return false;
+        }
+
+        m_out.write(reinterpret_cast<const char*>(hostBytes.data()), static_cast<std::streamsize>(hostBytes.size()));
         if (!m_out.good()) {
             ERROR << "TextFileWriter::run failed: write error for file: " << m_fileName << std::endl;
             return false;

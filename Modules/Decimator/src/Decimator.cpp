@@ -8,7 +8,17 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
-#include <vector>
+#include <string>
+
+cudaError_t launchDecimatorKernel(
+    const cuComplex* in,
+    cuComplex* out,
+    size_t outCount,
+    size_t phase,
+    size_t sps,
+    int blocks,
+    int threads
+);
 
 namespace {
 
@@ -34,6 +44,54 @@ bool anyToInt(const std::any& value, int* out) {
         return true;
     }
     return false;
+}
+
+} // namespace
+
+namespace {
+
+bool runDecimatorCuda(
+    const cuComplex* in,
+    size_t inputSize,
+    cuComplex* out,
+    int samplesPerSymbol,
+    size_t currentPhase,
+    std::string* error)
+{
+    if (inputSize == 0) {
+        return true;
+    }
+
+    const size_t sps = static_cast<size_t>(samplesPerSymbol);
+    if (currentPhase >= inputSize) {
+        return true;
+    }
+
+    const size_t outCount = 1 + ((inputSize - 1 - currentPhase) / sps);
+    if (outCount == 0) {
+        return true;
+    }
+
+    const int threads = 256;
+    const int blocks = static_cast<int>((outCount + static_cast<size_t>(threads) - 1) / static_cast<size_t>(threads));
+
+    const auto launchErr = launchDecimatorKernel(in, out, outCount, currentPhase, sps, blocks, threads);
+    if (launchErr != cudaSuccess) {
+        if (error) {
+            *error = std::string("Decimator::run failed: kernel launch failed: ") + cudaGetErrorString(launchErr);
+        }
+        return false;
+    }
+
+    const auto syncErr = cudaDeviceSynchronize();
+    if (syncErr != cudaSuccess) {
+        if (error) {
+            *error = std::string("Decimator::run failed: kernel execution failed: ") + cudaGetErrorString(syncErr);
+        }
+        return false;
+    }
+
+    return true;
 }
 
 } // namespace
@@ -92,39 +150,47 @@ bool Decimator::run() {
 
     const size_t inputSize = m_inData->size();
     if (inputSize == 0) {
-        m_outData = std::make_shared<CpuComplexSignal>();
+        auto empty = std::make_shared<GpuComplexFloatSignal>(1);
+        if (!empty || !empty->isValid() || !empty->setLogicalSize(0)) {
+            ERROR << "Decimator::run failed: unable to allocate empty output." << std::endl;
+            return false;
+        }
+        m_outData = empty;
         return true;
     }
 
-    std::vector<cuComplex> hostInput(inputSize);
-    const auto err = cudaMemcpy(
-        hostInput.data(),
-        m_inData->getDeviceData(),
-        inputSize * sizeof(cuComplex),
-        cudaMemcpyDeviceToHost
-    );
-    if (err != cudaSuccess) {
-        ERROR << "Decimator::run failed: cudaMemcpy failed: " << cudaGetErrorString(err) << std::endl;
+    const size_t sps = static_cast<size_t>(m_samplesPerSymbol);
+    const size_t outCount = (m_currentPhase < inputSize) ? (1 + ((inputSize - 1 - m_currentPhase) / sps)) : 0;
+
+    auto out = std::make_shared<GpuComplexFloatSignal>(std::max<size_t>(1, outCount));
+    if (!out || !out->isValid()) {
+        ERROR << "Decimator::run failed: unable to allocate output GPU buffer." << std::endl;
+        return false;
+    }
+    if (!out->setLogicalSize(outCount)) {
+        ERROR << "Decimator::run failed: unable to set output logical size." << std::endl;
         return false;
     }
 
-    std::vector<cuComplex> out;
-    out.reserve((inputSize + static_cast<size_t>(m_samplesPerSymbol) - 1) / static_cast<size_t>(m_samplesPerSymbol));
-
-    size_t index = m_currentPhase;
-    while (index < inputSize) {
-        out.push_back(hostInput[index]);
-        index += static_cast<size_t>(m_samplesPerSymbol);
+    std::string error;
+    if (!runDecimatorCuda(
+            m_inData->getDeviceData(),
+            inputSize,
+            out->getDeviceData(),
+            m_samplesPerSymbol,
+            m_currentPhase,
+            &error)) {
+        ERROR << error << std::endl;
+        return false;
     }
 
-    m_currentPhase = (index - inputSize);
-    if (m_currentPhase >= static_cast<size_t>(m_samplesPerSymbol)) {
-        m_currentPhase %= static_cast<size_t>(m_samplesPerSymbol);
+    size_t index = m_currentPhase + (outCount * sps);
+    m_currentPhase = index - inputSize;
+    if (m_currentPhase >= sps) {
+        m_currentPhase %= sps;
     }
 
-    auto* raw = new cuComplex[out.size()];
-    std::copy(out.begin(), out.end(), raw);
-    m_outData = std::make_shared<CpuComplexSignal>(raw, out.size());
+    m_outData = out;
     return true;
 }
 
