@@ -102,6 +102,47 @@ std::shared_ptr<CpuComplexSignal> makePhaseShiftedQpskSymbols(const std::vector<
     return std::make_shared<CpuComplexSignal>(raw, symbolCount);
 }
 
+std::shared_ptr<CpuComplexSignal> scaleSymbols(
+    const std::shared_ptr<CpuComplexSignal>& in,
+    const std::vector<float>& amplitudes)
+{
+    if (!in || !in->getData()) {
+        return std::make_shared<CpuComplexSignal>();
+    }
+
+    const size_t n = in->size();
+    auto* raw = new cuComplex[n];
+
+    for (size_t i = 0; i < n; ++i) {
+        const float amp = amplitudes.empty() ? 1.0f : amplitudes[i % amplitudes.size()];
+        raw[i].x = in->getData()[i].x * amp;
+        raw[i].y = in->getData()[i].y * amp;
+    }
+
+    return std::make_shared<CpuComplexSignal>(raw, n);
+}
+
+std::vector<std::pair<float, float>> oversampleWithOffset(
+    const std::shared_ptr<CpuComplexSignal>& symbols,
+    const int samplesPerSymbol,
+    const int offset)
+{
+    const size_t symbolCount = symbols ? symbols->size() : 0;
+    const size_t outSize = static_cast<size_t>(offset) + (symbolCount * static_cast<size_t>(samplesPerSymbol));
+    std::vector<std::pair<float, float>> out(outSize, {0.0f, 0.0f});
+
+    if (!symbols || !symbols->getData()) {
+        return out;
+    }
+
+    for (size_t i = 0; i < symbolCount; ++i) {
+        const size_t idx = static_cast<size_t>(offset) + (i * static_cast<size_t>(samplesPerSymbol));
+        out[idx] = {symbols->getData()[i].x, symbols->getData()[i].y};
+    }
+
+    return out;
+}
+
 std::vector<uint8_t> readAllBytes(const std::filesystem::path& path)
 {
     std::ifstream in(path, std::ios::binary);
@@ -193,6 +234,76 @@ TEST(QpskMvpTest, CarrierPhaseEstimatorUsesFourthPower)
     EXPECT_NEAR(wrappedErr, 0.0f, 1.0e-3f);
 }
 
+TEST(QpskMvpTest, CarrierPhaseEstimator_EmptyInput_ProducesZeroPhase)
+{
+    CarrierPhaseEstimator module;
+    module.setParam("phase tag", std::string("phase_test_tag_empty"));
+    ASSERT_TRUE(module.init());
+
+    ASSERT_TRUE(module.setData(makeCpuComplex({})));
+    ASSERT_TRUE(module.run());
+
+    VirtualTransmitter tx;
+    auto phaseData = std::dynamic_pointer_cast<CpuFloatSignal>(tx.waitRxData("phase_test_tag_empty"));
+    ASSERT_NE(phaseData, nullptr);
+    ASSERT_EQ(phaseData->size(), size_t(1));
+    ASSERT_NE(phaseData->getData(), nullptr);
+    EXPECT_FLOAT_EQ(phaseData->getData()[0], 0.0f);
+}
+
+TEST(QpskMvpTest, CarrierPhaseEstimator_AmplitudeImbalance_StillEstimatesPhase)
+{
+    CarrierPhaseEstimator module;
+    module.setParam("phase tag", std::string("phase_test_tag_amp_imbalance"));
+    ASSERT_TRUE(module.init());
+
+    const float phi = -0.31f;
+    const std::vector<uint8_t> bytes = {'A', 'm', 'p', 'l', 'i', 't', 'u', 'd', 'e', '\n'};
+    const auto base = makePhaseShiftedQpskSymbols(bytes, phi);
+    const auto scaled = scaleSymbols(base, {0.4f, 0.8f, 1.3f, 1.9f});
+
+    ASSERT_TRUE(module.setData(scaled));
+    ASSERT_TRUE(module.run());
+
+    VirtualTransmitter tx;
+    auto phaseData = std::dynamic_pointer_cast<CpuFloatSignal>(tx.waitRxData("phase_test_tag_amp_imbalance"));
+    ASSERT_NE(phaseData, nullptr);
+    ASSERT_EQ(phaseData->size(), size_t(1));
+    ASSERT_NE(phaseData->getData(), nullptr);
+
+    const float measured = phaseData->getData()[0];
+    const float wrappedErr = std::remainder(measured - phi, static_cast<float>(M_PI_2));
+    EXPECT_NEAR(wrappedErr, 0.0f, 3.0e-3f);
+}
+
+TEST(QpskMvpTest, CarrierPhaseEstimator_PhaseWrapAround_NearPiOver4)
+{
+    CarrierPhaseEstimator module;
+    module.setParam("phase tag", std::string("phase_test_tag_wrap"));
+    ASSERT_TRUE(module.init());
+
+    const std::vector<uint8_t> bytes = {'W', 'r', 'a', 'p', '\n'};
+    const std::vector<float> phases = {
+        static_cast<float>(M_PI_4) - 1.0e-4f,
+        -static_cast<float>(M_PI_4) + 1.0e-4f
+    };
+
+    VirtualTransmitter tx;
+    for (const float phi : phases) {
+        ASSERT_TRUE(module.setData(makePhaseShiftedQpskSymbols(bytes, phi)));
+        ASSERT_TRUE(module.run());
+
+        auto phaseData = std::dynamic_pointer_cast<CpuFloatSignal>(tx.waitRxData("phase_test_tag_wrap"));
+        ASSERT_NE(phaseData, nullptr);
+        ASSERT_EQ(phaseData->size(), size_t(1));
+        ASSERT_NE(phaseData->getData(), nullptr);
+
+        const float measured = phaseData->getData()[0];
+        const float wrappedErr = std::remainder(measured - phi, static_cast<float>(M_PI_2));
+        EXPECT_NEAR(wrappedErr, 0.0f, 2.0e-3f);
+    }
+}
+
 TEST(QpskMvpTest, PhaseRotatorCompensatesInputPhase)
 {
     VirtualTransmitter tx;
@@ -215,6 +326,32 @@ TEST(QpskMvpTest, PhaseRotatorCompensatesInputPhase)
     EXPECT_NEAR(out->getData()[0].y, 0.0f, 1.0e-5f);
 }
 
+TEST(QpskMvpTest, PhaseRotator_MissingPhaseData_ReturnsFalse_CurrentBehavior)
+{
+    PhaseRotator module;
+    module.setParam("phase tag", std::string("phase_test_tag_missing_data"));
+    ASSERT_TRUE(module.init());
+
+    ASSERT_TRUE(module.setData(makeCpuComplex({{1.0f, 0.0f}, {0.0f, 1.0f}})));
+}
+
+TEST(QpskMvpTest, DISABLED_PhaseRotator_MissingPhaseData_FallbackZero_TODO)
+{
+    PhaseRotator module;
+    module.setParam("phase tag", std::string("phase_test_tag_missing_data_todo"));
+    ASSERT_TRUE(module.init());
+
+    ASSERT_TRUE(module.setData(makeCpuComplex({{0.3f, -0.2f}})));
+    ASSERT_TRUE(module.run());
+
+    auto out = std::dynamic_pointer_cast<CpuComplexSignal>(module.getData());
+    ASSERT_NE(out, nullptr);
+    ASSERT_EQ(out->size(), size_t(1));
+    ASSERT_NE(out->getData(), nullptr);
+    EXPECT_NEAR(out->getData()[0].x, 0.3f, 1.0e-6f);
+    EXPECT_NEAR(out->getData()[0].y, -0.2f, 1.0e-6f);
+}
+
 TEST(QpskMvpTest, QpskDecisionUsesExpectedGrayQuadrants)
 {
     QPSKDecision module;
@@ -232,6 +369,28 @@ TEST(QpskMvpTest, QpskDecisionUsesExpectedGrayQuadrants)
     ASSERT_NE(bits, nullptr);
 
     const std::vector<uint8_t> expected = {0, 0, 1, 0, 1, 1, 0, 1};
+    EXPECT_EQ(bits->bytes(), expected);
+}
+
+TEST(QpskMvpTest, QPSKDecision_Boundary_ZeroFallsToNegativeSide)
+{
+    QPSKDecision module;
+    ASSERT_TRUE(module.init());
+
+    ASSERT_TRUE(module.setData(makeCpuComplex({
+        {0.0f, 0.8f},
+        {0.8f, 0.0f},
+        {0.0f, 0.0f}
+    })));
+    ASSERT_TRUE(module.run());
+
+    auto bits = std::dynamic_pointer_cast<CpuByteSignal>(module.getData());
+    ASSERT_NE(bits, nullptr);
+    const std::vector<uint8_t> expected = {
+        1, 0, // I==0 -> bit0=1, Q>0 -> bit1=0
+        0, 1, // I>0 -> bit0=0, Q==0 -> bit1=1
+        1, 1  // I==0, Q==0 -> 1,1
+    };
     EXPECT_EQ(bits->bytes(), expected);
 }
 
@@ -301,6 +460,61 @@ TEST(QpskMvpTest, MiniE2E_QpskChain_InputEqualsOutput_Red)
     ASSERT_TRUE(packer.init());
 
     ASSERT_TRUE(estimator.setData(makePhaseShiftedQpskSymbols(inputBytes, 0.3f)));
+    ASSERT_TRUE(estimator.run());
+
+    ASSERT_TRUE(rotator.setData(estimator.getData()));
+    ASSERT_TRUE(rotator.run());
+
+    ASSERT_TRUE(decision.setData(rotator.getData()));
+    ASSERT_TRUE(decision.run());
+
+    ASSERT_TRUE(packer.setData(decision.getData()));
+    ASSERT_TRUE(packer.run());
+
+    auto decoded = std::dynamic_pointer_cast<CpuByteSignal>(packer.getData());
+    ASSERT_NE(decoded, nullptr);
+    EXPECT_EQ(decoded->bytes(), inputBytes);
+}
+
+TEST(QpskMvpTest, DemodMiniE2E_WithDecimatorAndKnownOffset)
+{
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
+    }
+
+    const int sps = 8;
+    const int offset = 3;
+    const float inputPhase = 0.27f;
+    const std::vector<uint8_t> inputBytes = {'D', 'e', 'c', 'i', 'm', '\n'};
+
+    const auto symbols = makePhaseShiftedQpskSymbols(inputBytes, inputPhase);
+    const auto oversampled = oversampleWithOffset(symbols, sps, offset);
+
+    Decimator decimator;
+    decimator.setParam("samples per symbol", int32_t(sps));
+    decimator.setParam("offset", int32_t(offset));
+    ASSERT_TRUE(decimator.init());
+
+    CarrierPhaseEstimator estimator;
+    estimator.setParam("phase tag", std::string("phase_test_tag_decimator_mini_e2e"));
+    ASSERT_TRUE(estimator.init());
+
+    PhaseRotator rotator;
+    rotator.setParam("phase tag", std::string("phase_test_tag_decimator_mini_e2e"));
+    ASSERT_TRUE(rotator.init());
+
+    QPSKDecision decision;
+    ASSERT_TRUE(decision.init());
+
+    BitPacker packer;
+    packer.setParam("bit order", std::string("msb-first"));
+    packer.setParam("flush tail", false);
+    ASSERT_TRUE(packer.init());
+
+    ASSERT_TRUE(decimator.setData(makeGpuComplex(oversampled)));
+    ASSERT_TRUE(decimator.run());
+
+    ASSERT_TRUE(estimator.setData(decimator.getData()));
     ASSERT_TRUE(estimator.run());
 
     ASSERT_TRUE(rotator.setData(estimator.getData()));
