@@ -1,0 +1,66 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "debug",
+      "displayName": "Debug (Ninja)",
+      "description": "Debug build with tests enabled",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "BUILD_TESTING": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "displayName": "Build Debug",
+      "configurePreset": "debug",
+      "jobs": 6
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "all",
+      "displayName": "CTest: all",
+      "configurePreset": "debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "module",
+      "displayName": "CTest: module",
+      "configurePreset": "debug",
+      "filter": {
+        "include": {
+          "label": "module"
+        }
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "e2e",
+      "displayName": "CTest: e2e",
+      "configurePreset": "debug",
+      "filter": {
+        "include": {
+          "label": "e2e"
+        }
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

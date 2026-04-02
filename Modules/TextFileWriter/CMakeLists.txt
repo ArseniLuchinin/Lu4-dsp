@@ -23,3 +23,7 @@ target_link_libraries(${PROJECT_NAME}
         CUDA::cudart
         logger
 )
+
+if(BUILD_TESTING AND PROJECT_ENABLE_GTEST)
+    add_subdirectory(tests)
+endif()

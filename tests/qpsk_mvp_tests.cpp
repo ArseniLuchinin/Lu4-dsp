@@ -6,7 +6,6 @@
 #include <PhaseRotator.hpp>
 #include <QPSKDecision.hpp>
 #include <RRCCompute.hpp>
-#include <TextFileWriter.hpp>
 
 #include <EmptyContainer.hpp>
 #include <GpuByteSignal.hpp>
@@ -29,6 +28,7 @@
 #include <string>
 #include <system_error>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -36,6 +36,7 @@ namespace {
 constexpr int kQpskSps = 128;
 constexpr int kQpskSymbolRate = 16384;
 constexpr int kSampleRate = 2097152;
+
 bool isCudaAvailable()
 {
     int deviceCount = 0;
@@ -51,22 +52,6 @@ std::shared_ptr<GpuComplexFloatSignal> makeGpuComplex(const std::vector<std::pai
 
     auto gpu = std::make_shared<GpuComplexFloatSignal>(host.size());
     gpu->setDataFromHost(host.data(), host.size());
-    return gpu;
-}
-
-std::shared_ptr<GpuByteSignal> makeGpuBytes(const std::vector<uint8_t>& values)
-{
-    auto gpu = std::make_shared<GpuByteSignal>(std::max<size_t>(size_t(1), values.size()));
-    if (!gpu || !gpu->isValid()) {
-        return std::make_shared<GpuByteSignal>();
-    }
-
-    if (!values.empty()) {
-        auto host = values;
-        gpu->setDataFromHost(host.data(), host.size());
-    } else {
-        gpu->setLogicalSize(0);
-    }
     return gpu;
 }
 
@@ -102,27 +87,6 @@ std::vector<cuComplex> downloadGpuComplex(const std::shared_ptr<GpuComplexFloatS
     return out;
 }
 
-float downloadSingleGpuFloat(const std::shared_ptr<GpuFloatSignal>& data, bool* ok = nullptr)
-{
-    if (ok) {
-        *ok = false;
-    }
-    if (!data || !data->isValid() || data->size() == 0 || !data->getDeviceData()) {
-        return 0.0f;
-    }
-
-    float value = 0.0f;
-    const auto err = cudaMemcpy(&value, data->getDeviceData(), sizeof(float), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        return 0.0f;
-    }
-
-    if (ok) {
-        *ok = true;
-    }
-    return value;
-}
-
 std::vector<uint8_t> bytesToMsbBits(const std::vector<uint8_t>& bytes)
 {
     std::vector<uint8_t> bits;
@@ -145,7 +109,8 @@ std::shared_ptr<GpuComplexFloatSignal> makePhaseShiftedQpskSymbols(const std::ve
     const float s = std::sin(phase);
 
     const size_t symbolCount = bits.size() / 2;
-    auto* raw = new cuComplex[symbolCount];
+    std::vector<std::pair<float, float>> hostPairs;
+    hostPairs.reserve(symbolCount);
 
     for (size_t i = 0; i < symbolCount; ++i) {
         const uint8_t bit0 = bits[(2 * i) + 0];
@@ -153,46 +118,10 @@ std::shared_ptr<GpuComplexFloatSignal> makePhaseShiftedQpskSymbols(const std::ve
 
         const float iComp = (bit0 == 0u ? 1.0f : -1.0f) * invSqrt2;
         const float qComp = (bit1 == 0u ? 1.0f : -1.0f) * invSqrt2;
-
-        raw[i].x = (iComp * c) - (qComp * s);
-        raw[i].y = (iComp * s) + (qComp * c);
+        hostPairs.emplace_back((iComp * c) - (qComp * s), (iComp * s) + (qComp * c));
     }
 
-    std::vector<std::pair<float, float>> hostPairs;
-    hostPairs.reserve(symbolCount);
-    for (size_t i = 0; i < symbolCount; ++i) {
-        hostPairs.emplace_back(raw[i].x, raw[i].y);
-    }
-    delete[] raw;
     return makeGpuComplex(hostPairs);
-}
-
-std::shared_ptr<GpuComplexFloatSignal> scaleSymbols(
-    const std::shared_ptr<GpuComplexFloatSignal>& in,
-    const std::vector<float>& amplitudes)
-{
-    if (!in || !in->getDeviceData()) {
-        return std::make_shared<GpuComplexFloatSignal>();
-    }
-
-    std::vector<cuComplex> host = downloadGpuComplex(in);
-    const size_t n = host.size();
-    if (n == 0 && in->size() != 0) {
-        return std::make_shared<GpuComplexFloatSignal>();
-    }
-
-    for (size_t i = 0; i < n; ++i) {
-        const float amp = amplitudes.empty() ? 1.0f : amplitudes[i % amplitudes.size()];
-        host[i].x *= amp;
-        host[i].y *= amp;
-    }
-
-    std::vector<std::pair<float, float>> out;
-    out.reserve(n);
-    for (const auto& s : host) {
-        out.emplace_back(s.x, s.y);
-    }
-    return makeGpuComplex(out);
 }
 
 std::vector<std::pair<float, float>> oversampleWithOffset(
@@ -250,324 +179,6 @@ std::string quotePath(const std::filesystem::path& path)
 }
 
 } // namespace
-
-TEST(QpskMvpTest, DecimatorKeepsPhaseAcrossBlocks)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    Decimator module;
-    module.setParam("samples per symbol", int32_t(4));
-    module.setParam("offset", int32_t(1));
-    ASSERT_TRUE(module.init());
-
-    ASSERT_TRUE(module.setData(makeGpuComplex({
-        {0.0f, 0.0f}, {1.0f, 0.0f}, {2.0f, 0.0f}, {3.0f, 0.0f}, {4.0f, 0.0f}
-    })));
-    ASSERT_TRUE(module.run());
-
-    auto out1 = std::dynamic_pointer_cast<GpuComplexFloatSignal>(module.getData());
-    ASSERT_NE(out1, nullptr);
-    ASSERT_EQ(out1->size(), size_t(1));
-    const auto out1Host = downloadGpuComplex(out1);
-    ASSERT_EQ(out1Host.size(), size_t(1));
-    EXPECT_FLOAT_EQ(out1Host[0].x, 1.0f);
-
-    ASSERT_TRUE(module.setData(makeGpuComplex({
-        {5.0f, 0.0f}, {6.0f, 0.0f}, {7.0f, 0.0f}, {8.0f, 0.0f}, {9.0f, 0.0f}
-    })));
-    ASSERT_TRUE(module.run());
-
-    auto out2 = std::dynamic_pointer_cast<GpuComplexFloatSignal>(module.getData());
-    ASSERT_NE(out2, nullptr);
-    ASSERT_EQ(out2->size(), size_t(2));
-    const auto out2Host = downloadGpuComplex(out2);
-    ASSERT_EQ(out2Host.size(), size_t(2));
-    EXPECT_FLOAT_EQ(out2Host[0].x, 5.0f);
-    EXPECT_FLOAT_EQ(out2Host[1].x, 9.0f);
-}
-
-TEST(QpskMvpTest, CarrierPhaseEstimatorUsesFourthPower)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    CarrierPhaseEstimator module;
-    module.setParam("phase tag", std::string("phase_test_tag_1"));
-    ASSERT_TRUE(module.init());
-
-    const float phi = 0.2f;
-    const float amp = 1.0f / std::sqrt(2.0f);
-    std::vector<std::pair<float, float>> symbols;
-    symbols.reserve(64);
-    for (size_t i = 0; i < 64; ++i) {
-        const float a = static_cast<float>(M_PI_4) + phi;
-        symbols.emplace_back(std::cos(a) * amp * std::sqrt(2.0f), std::sin(a) * amp * std::sqrt(2.0f));
-    }
-
-    ASSERT_TRUE(module.setData(makeGpuComplex(symbols)));
-    ASSERT_TRUE(module.run());
-
-    VirtualTransmitter tx;
-    auto phaseData = std::dynamic_pointer_cast<GpuFloatSignal>(tx.waitRxData("phase_test_tag_1"));
-    ASSERT_NE(phaseData, nullptr);
-    ASSERT_EQ(phaseData->size(), size_t(1));
-
-    bool phaseOk = false;
-    const float measured = downloadSingleGpuFloat(phaseData, &phaseOk);
-    ASSERT_TRUE(phaseOk);
-    const float wrappedErr = std::remainder(measured - phi, static_cast<float>(M_PI_2));
-    EXPECT_NEAR(wrappedErr, 0.0f, 1.0e-3f);
-}
-
-TEST(QpskMvpTest, CarrierPhaseEstimator_EmptyInput_ProducesZeroPhase)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    CarrierPhaseEstimator module;
-    module.setParam("phase tag", std::string("phase_test_tag_empty"));
-    ASSERT_TRUE(module.init());
-
-    ASSERT_TRUE(module.setData(makeGpuComplex({})));
-    ASSERT_TRUE(module.run());
-
-    VirtualTransmitter tx;
-    auto phaseData = std::dynamic_pointer_cast<GpuFloatSignal>(tx.waitRxData("phase_test_tag_empty"));
-    ASSERT_NE(phaseData, nullptr);
-    ASSERT_EQ(phaseData->size(), size_t(1));
-    bool phaseOk = false;
-    EXPECT_FLOAT_EQ(downloadSingleGpuFloat(phaseData, &phaseOk), 0.0f);
-    ASSERT_TRUE(phaseOk);
-}
-
-TEST(QpskMvpTest, CarrierPhaseEstimator_AmplitudeImbalance_StillEstimatesPhase)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    CarrierPhaseEstimator module;
-    module.setParam("phase tag", std::string("phase_test_tag_amp_imbalance"));
-    ASSERT_TRUE(module.init());
-
-    const float phi = -0.31f;
-    const std::vector<uint8_t> bytes = {'A', 'm', 'p', 'l', 'i', 't', 'u', 'd', 'e', '\n'};
-    const auto base = makePhaseShiftedQpskSymbols(bytes, phi);
-    const auto scaled = scaleSymbols(base, {0.4f, 0.8f, 1.3f, 1.9f});
-
-    ASSERT_TRUE(module.setData(scaled));
-    ASSERT_TRUE(module.run());
-
-    VirtualTransmitter tx;
-    auto phaseData = std::dynamic_pointer_cast<GpuFloatSignal>(tx.waitRxData("phase_test_tag_amp_imbalance"));
-    ASSERT_NE(phaseData, nullptr);
-    ASSERT_EQ(phaseData->size(), size_t(1));
-    bool phaseOk = false;
-    const float measured = downloadSingleGpuFloat(phaseData, &phaseOk);
-    ASSERT_TRUE(phaseOk);
-    const float wrappedErr = std::remainder(measured - phi, static_cast<float>(M_PI_2));
-    EXPECT_NEAR(wrappedErr, 0.0f, 3.0e-3f);
-}
-
-TEST(QpskMvpTest, CarrierPhaseEstimator_PhaseWrapAround_NearPiOver4)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    CarrierPhaseEstimator module;
-    module.setParam("phase tag", std::string("phase_test_tag_wrap"));
-    ASSERT_TRUE(module.init());
-
-    const std::vector<uint8_t> bytes = {'W', 'r', 'a', 'p', '\n'};
-    const std::vector<float> phases = {
-        static_cast<float>(M_PI_4) - 1.0e-4f,
-        -static_cast<float>(M_PI_4) + 1.0e-4f
-    };
-
-    VirtualTransmitter tx;
-    for (const float phi : phases) {
-        ASSERT_TRUE(module.setData(makePhaseShiftedQpskSymbols(bytes, phi)));
-        ASSERT_TRUE(module.run());
-
-        auto phaseData = std::dynamic_pointer_cast<GpuFloatSignal>(tx.waitRxData("phase_test_tag_wrap"));
-        ASSERT_NE(phaseData, nullptr);
-        ASSERT_EQ(phaseData->size(), size_t(1));
-        bool phaseOk = false;
-        const float measured = downloadSingleGpuFloat(phaseData, &phaseOk);
-        ASSERT_TRUE(phaseOk);
-        const float wrappedErr = std::remainder(measured - phi, static_cast<float>(M_PI_2));
-        EXPECT_NEAR(wrappedErr, 0.0f, 2.0e-3f);
-    }
-}
-
-TEST(QpskMvpTest, PhaseRotatorCompensatesInputPhase)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    VirtualTransmitter tx;
-    auto phase = std::make_shared<GpuFloatSignal>(1);
-    float phaseRaw = 0.3f;
-    phase->setDataFromHost(&phaseRaw, 1);
-    tx.txData(phase, "phase_test_tag_2");
-
-    PhaseRotator module;
-    module.setParam("phase tag", std::string("phase_test_tag_2"));
-    ASSERT_TRUE(module.init());
-
-    const float inPhase = 0.3f;
-    ASSERT_TRUE(module.setData(makeGpuComplex({{std::cos(inPhase), std::sin(inPhase)}})));
-    ASSERT_TRUE(module.run());
-
-    auto out = std::dynamic_pointer_cast<GpuComplexFloatSignal>(module.getData());
-    ASSERT_NE(out, nullptr);
-    ASSERT_EQ(out->size(), size_t(1));
-    const auto hostOut = downloadGpuComplex(out);
-    ASSERT_EQ(hostOut.size(), size_t(1));
-    EXPECT_NEAR(hostOut[0].x, 1.0f, 1.0e-5f);
-    EXPECT_NEAR(hostOut[0].y, 0.0f, 1.0e-5f);
-}
-
-TEST(QpskMvpTest, PhaseRotator_MissingPhaseData_ReturnsFalse_CurrentBehavior)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    PhaseRotator module;
-    module.setParam("phase tag", std::string("phase_test_tag_missing_data"));
-    ASSERT_TRUE(module.init());
-
-    ASSERT_TRUE(module.setData(makeGpuComplex({{1.0f, 0.0f}, {0.0f, 1.0f}})));
-    EXPECT_FALSE(module.run());
-}
-
-TEST(QpskMvpTest, DISABLED_PhaseRotator_MissingPhaseData_FallbackZero_TODO)
-{
-    PhaseRotator module;
-    module.setParam("phase tag", std::string("phase_test_tag_missing_data_todo"));
-    ASSERT_TRUE(module.init());
-
-    ASSERT_TRUE(module.setData(makeGpuComplex({{0.3f, -0.2f}})));
-    ASSERT_TRUE(module.run());
-
-    auto out = std::dynamic_pointer_cast<GpuComplexFloatSignal>(module.getData());
-    ASSERT_NE(out, nullptr);
-    ASSERT_EQ(out->size(), size_t(1));
-    const auto hostOut = downloadGpuComplex(out);
-    ASSERT_EQ(hostOut.size(), size_t(1));
-    EXPECT_NEAR(hostOut[0].x, 0.3f, 1.0e-6f);
-    EXPECT_NEAR(hostOut[0].y, -0.2f, 1.0e-6f);
-}
-
-TEST(QpskMvpTest, QpskDecisionUsesExpectedGrayQuadrants)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    QPSKDecision module;
-    ASSERT_TRUE(module.init());
-
-    ASSERT_TRUE(module.setData(makeGpuComplex({
-        {0.8f, 0.9f},
-        {-0.8f, 0.9f},
-        {-0.8f, -0.9f},
-        {0.8f, -0.9f}
-    })));
-    ASSERT_TRUE(module.run());
-
-    auto bits = std::dynamic_pointer_cast<GpuByteSignal>(module.getData());
-    ASSERT_NE(bits, nullptr);
-
-    const std::vector<uint8_t> expected = {0, 0, 1, 0, 1, 1, 0, 1};
-    EXPECT_EQ(downloadGpuBytes(bits), expected);
-}
-
-TEST(QpskMvpTest, QPSKDecision_Boundary_ZeroFallsToNegativeSide)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    QPSKDecision module;
-    ASSERT_TRUE(module.init());
-
-    ASSERT_TRUE(module.setData(makeGpuComplex({
-        {0.0f, 0.8f},
-        {0.8f, 0.0f},
-        {0.0f, 0.0f}
-    })));
-    ASSERT_TRUE(module.run());
-
-    auto bits = std::dynamic_pointer_cast<GpuByteSignal>(module.getData());
-    ASSERT_NE(bits, nullptr);
-    const std::vector<uint8_t> expected = {
-        1, 0, // I==0 -> bit0=1, Q>0 -> bit1=0
-        0, 1, // I>0 -> bit0=0, Q==0 -> bit1=1
-        1, 1  // I==0, Q==0 -> 1,1
-    };
-    EXPECT_EQ(downloadGpuBytes(bits), expected);
-}
-
-TEST(QpskMvpTest, BitPackerMsbFirstAndPendingBits)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    BitPacker module;
-    module.setParam("bit order", std::string("msb-first"));
-    module.setParam("flush tail", false);
-    ASSERT_TRUE(module.init());
-
-    ASSERT_TRUE(module.setData(makeGpuBytes({1, 0, 1, 0, 0, 1})));
-    ASSERT_TRUE(module.run());
-    auto out1 = std::dynamic_pointer_cast<GpuByteSignal>(module.getData());
-    ASSERT_NE(out1, nullptr);
-    EXPECT_TRUE(downloadGpuBytes(out1).empty());
-
-    ASSERT_TRUE(module.setData(makeGpuBytes({1, 1, 0, 0})));
-    ASSERT_TRUE(module.run());
-    auto out2 = std::dynamic_pointer_cast<GpuByteSignal>(module.getData());
-    ASSERT_NE(out2, nullptr);
-
-    ASSERT_EQ(out2->size(), size_t(1));
-    const auto out2Host = downloadGpuBytes(out2);
-    ASSERT_EQ(out2Host.size(), size_t(1));
-    EXPECT_EQ(out2Host[0], static_cast<uint8_t>(0b10100111));
-}
-
-TEST(QpskMvpTest, TextFileWriterWritesBytesAsIs)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    const std::string path = "/tmp/qpsk_writer_test_" + std::to_string(::getpid()) + ".txt";
-
-    TextFileWriter writer;
-    writer.setParam("file name", path);
-    ASSERT_TRUE(writer.init());
-
-    const std::vector<uint8_t> payload = {'T', 'e', 's', 't', '\n'};
-    ASSERT_TRUE(writer.setData(makeGpuBytes(payload)));
-    ASSERT_TRUE(writer.run());
-
-    std::ifstream in(path, std::ios::binary);
-    ASSERT_TRUE(in.is_open());
-
-    std::vector<uint8_t> read((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    EXPECT_EQ(read, payload);
-
-    std::filesystem::remove(path);
-}
 
 TEST(QpskMvpTest, MiniE2E_QpskChain_InputEqualsOutput_Red)
 {
@@ -688,8 +299,6 @@ TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
     const uint64_t expectedSignalSizeBytes = symbolsCount * static_cast<uint64_t>(kQpskSps) * sizeof(cuComplex);
     EXPECT_EQ(std::filesystem::file_size(signalPath), expectedSignalSizeBytes);
 
-    // Guard against broken fixture generation (uint8 underflow in symbol mapping).
-    // Valid ideal-QPSK levels must stay near +/-1/sqrt(2), definitely not hundreds.
     const auto preview = readComplexPrefix(signalPath, size_t(8192));
     ASSERT_FALSE(preview.empty());
     float maxAbs = 0.0f;
@@ -700,8 +309,6 @@ TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
     ASSERT_LT(maxAbs, 2.0f) << "qpsk_signal.bin seems malformed (max|IQ|=" << maxAbs
                             << "). Regenerate with fixed utils/qpsk_generator.py.";
 
-    // For generator mode=ideal the source is impulse-like at symbol rate.
-    // To validate QPSK demod chain itself, keep FIR stage but run it as identity.
     auto identityTaps = std::make_shared<GpuFloatSignal>(1);
     float oneTap = 1.0f;
     identityTaps->setDataFromHost(&oneTap, 1);
@@ -862,7 +469,6 @@ TEST(QpskMvpTest, FileE2E_QpskRrc128_InputEqualsOutput)
     BitPacker packer;
     packer.setParam("bit order", std::string("msb-first"));
     packer.setParam("flush tail", false);
-    // Compensate deterministic TX+RX RRC startup transient.
     packer.setParam("discard leading bits", int32_t(16));
     ASSERT_TRUE(packer.init());
 

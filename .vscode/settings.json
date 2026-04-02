@@ -1,0 +1,29 @@
+{
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": true,
+  "cmake.ctest.testExplorerIntegrationEnabled": false,
+  "testMate.cpp.test.advancedExecutables": [
+    {
+      "pattern": "${command:cmake.buildDirectory}/Modules/*/tests/*_module_tests",
+      "cwd": "${command:cmake.buildDirectory}",
+      "testGrouping": {
+        "groupByExecutable": {
+          "label": "${relDirpath}",
+          "description": "${filename}"
+        }
+      }
+    },
+    {
+      "pattern": "${command:cmake.buildDirectory}/tests/qpsk_mvp_tests",
+      "cwd": "${command:cmake.buildDirectory}",
+      "testGrouping": {
+        "groupByLabel": {
+          "label": "E2E"
+        },
+        "groupByExecutable": {
+          "label": "${filename}"
+        }
+      }
+    }
+  ]
+}

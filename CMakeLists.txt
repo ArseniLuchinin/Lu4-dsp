@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(CTest)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "CMakeTargets")
+
 find_package(CUDAToolkit)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(HIREDIS REQUIRED hiredis)
@@ -23,6 +26,17 @@ add_subdirectory(DataContainers)
 add_subdirectory(Module)
 
 add_subdirectory(Core)
+
+if(BUILD_TESTING)
+    find_package(GTest QUIET)
+    if(GTest_FOUND)
+        include(GoogleTest)
+        set(PROJECT_ENABLE_GTEST ON)
+    else()
+        message(WARNING "GTest was not found. Test targets will be skipped.")
+        set(PROJECT_ENABLE_GTEST OFF)
+    endif()
+endif()
 
 add_executable(computing_server main.cpp)
 target_include_directories(computing_server
@@ -55,7 +69,8 @@ endfunction()
 
 add_all_subdirs("Modules")
 
-if(BUILD_TESTING)
+enable_testing()
+if(BUILD_TESTING AND PROJECT_ENABLE_GTEST)
     add_subdirectory(tests)
 endif()
 
