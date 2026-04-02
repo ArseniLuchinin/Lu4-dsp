@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 #include <cmath>
+#include <chrono>
 
 #include <FIR_filter.hpp>
 
@@ -204,6 +205,7 @@ bool computeSignalEnergy(
 } // namespace
 
 bool FIRFilter::run(){
+    const auto tRunStart = std::chrono::steady_clock::now();
     if (!m_data || !m_gpuData || !m_workData) {
         ERROR << "FIRFilter::run failed: input/work data is not set." << std::endl;
         return false;
@@ -211,6 +213,11 @@ bool FIRFilter::run(){
 
     const auto threads = 256;
     const auto blocks  = static_cast<int>((m_gpuData->size() + threads - 1) / threads);
+    DEBUG << "FIRFilter::run begin: inputSize=" << m_gpuData->size()
+          << ", blocks=" << blocks
+          << ", threads=" << threads
+          << ", filterOrder=" << m_M
+          << ", logEnergy=" << (m_logEnergy ? "true" : "false") << std::endl;
     if (blocks <= 0) {
         return true;
     }
@@ -237,6 +244,32 @@ bool FIRFilter::run(){
     }
 
     const bool hasHistory = (m_M > 1);
+
+    cudaEvent_t kernelStart = nullptr;
+    cudaEvent_t kernelStop = nullptr;
+    const auto eventStartErr = cudaEventCreate(&kernelStart);
+    const auto eventStopErr = cudaEventCreate(&kernelStop);
+    if (eventStartErr != cudaSuccess || eventStopErr != cudaSuccess) {
+        if (kernelStart) {
+            cudaEventDestroy(kernelStart);
+        }
+        if (kernelStop) {
+            cudaEventDestroy(kernelStop);
+        }
+        ERROR << "FIRFilter::run failed: cudaEventCreate failed: "
+              << cudaGetErrorString((eventStartErr != cudaSuccess) ? eventStartErr : eventStopErr) << std::endl;
+        return false;
+    }
+
+    const auto tKernelEnqueueStart = std::chrono::steady_clock::now();
+    const auto recordKernelStartErr = cudaEventRecord(kernelStart, 0);
+    if (recordKernelStartErr != cudaSuccess) {
+        cudaEventDestroy(kernelStart);
+        cudaEventDestroy(kernelStop);
+        ERROR << "FIRFilter::run failed: cudaEventRecord(start) failed: "
+              << cudaGetErrorString(recordKernelStartErr) << std::endl;
+        return false;
+    }
 
     if (m_tapType == TapType::Real && m_gpuData->sampleType() == GpuSampleType::Float32) {
         auto in = castGpuSignal<GpuFloatSignal>(m_gpuData, "FIRFilter::run");
@@ -293,17 +326,59 @@ bool FIRFilter::run(){
             m_complexTaps->getDeviceData(),
             m_M);
     } else {
+        cudaEventDestroy(kernelStart);
+        cudaEventDestroy(kernelStop);
         ERROR << "FIRFilter::run failed: unsupported input/taps combination." << std::endl;
         return false;
     }
 
+    const auto recordKernelStopErr = cudaEventRecord(kernelStop, 0);
+    if (recordKernelStopErr != cudaSuccess) {
+        cudaEventDestroy(kernelStart);
+        cudaEventDestroy(kernelStop);
+        ERROR << "FIRFilter::run failed: cudaEventRecord(stop) failed: "
+              << cudaGetErrorString(recordKernelStopErr) << std::endl;
+        return false;
+    }
+    const auto tKernelEnqueueEnd = std::chrono::steady_clock::now();
+
     const auto launchErr = cudaGetLastError();
     if (launchErr != cudaSuccess) {
+        cudaEventDestroy(kernelStart);
+        cudaEventDestroy(kernelStop);
         ERROR << "FIRFilter::run failed: kernel launch error: "
               << cudaGetErrorString(launchErr) << std::endl;
         return false;
     }
 
+    const auto tKernelWaitStart = std::chrono::steady_clock::now();
+    const auto kernelSyncErr = cudaEventSynchronize(kernelStop);
+    const auto tKernelWaitEnd = std::chrono::steady_clock::now();
+    if (kernelSyncErr != cudaSuccess) {
+        cudaEventDestroy(kernelStart);
+        cudaEventDestroy(kernelStop);
+        ERROR << "FIRFilter::run failed: cudaEventSynchronize failed: "
+              << cudaGetErrorString(kernelSyncErr) << std::endl;
+        return false;
+    }
+
+    float kernelMs = 0.0f;
+    const auto elapsedErr = cudaEventElapsedTime(&kernelMs, kernelStart, kernelStop);
+    cudaEventDestroy(kernelStart);
+    cudaEventDestroy(kernelStop);
+    if (elapsedErr != cudaSuccess) {
+        ERROR << "FIRFilter::run failed: cudaEventElapsedTime failed: "
+              << cudaGetErrorString(elapsedErr) << std::endl;
+        return false;
+    }
+
+    const auto kernelEnqueueUs = std::chrono::duration_cast<std::chrono::microseconds>(tKernelEnqueueEnd - tKernelEnqueueStart).count();
+    const auto kernelWaitUs = std::chrono::duration_cast<std::chrono::microseconds>(tKernelWaitEnd - tKernelWaitStart).count();
+    DEBUG << "FIRFilter::run kernel timing: host_enqueue_us=" << kernelEnqueueUs
+          << ", host_wait_us=" << kernelWaitUs
+          << ", device_kernel_ms=" << kernelMs << std::endl;
+
+    const auto tCopyBackStart = std::chrono::steady_clock::now();
     const auto copyBackErr = cudaMemcpy(
         m_gpuData->deviceDataRaw(),
         m_workData->deviceDataRaw(),
@@ -315,6 +390,9 @@ bool FIRFilter::run(){
               << cudaGetErrorString(copyBackErr) << std::endl;
         return false;
     }
+    const auto tCopyBackEnd = std::chrono::steady_clock::now();
+    const auto copyBackUs = std::chrono::duration_cast<std::chrono::microseconds>(tCopyBackEnd - tCopyBackStart).count();
+    DEBUG << "FIRFilter::run copyBack D2D elapsed_us=" << copyBackUs << std::endl;
 
     const size_t historySize = static_cast<size_t>(m_M - 1);
     if (historySize == 0) {
@@ -326,6 +404,7 @@ bool FIRFilter::run(){
         return false;
     }
 
+    const auto tHistoryCopyStart = std::chrono::steady_clock::now();
     const auto copyErr = cudaMemcpy(
         m_historyData->deviceDataRaw(),
         m_nextHistoryData->deviceDataRaw(),
@@ -337,6 +416,9 @@ bool FIRFilter::run(){
               << cudaGetErrorString(copyErr) << std::endl;
         return false;
     }
+    const auto tHistoryCopyEnd = std::chrono::steady_clock::now();
+    const auto historyCopyUs = std::chrono::duration_cast<std::chrono::microseconds>(tHistoryCopyEnd - tHistoryCopyStart).count();
+    DEBUG << "FIRFilter::run history copy D2D elapsed_us=" << historyCopyUs << std::endl;
 
     if (m_logEnergy) {
         double energyAfter = 0.0;
@@ -352,6 +434,10 @@ bool FIRFilter::run(){
               << ", after=" << energyAfter
               << ", delta=" << ratioDb << " dB" << std::endl;
     }
+
+    const auto tRunEnd = std::chrono::steady_clock::now();
+    const auto totalUs = std::chrono::duration_cast<std::chrono::microseconds>(tRunEnd - tRunStart).count();
+    DEBUG << "FIRFilter::run done: elapsed_total_us=" << totalUs << std::endl;
 
     return true;
 }

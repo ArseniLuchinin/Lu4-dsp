@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -74,19 +75,10 @@ bool runDecimatorCuda(
 
     const int threads = 256;
     const int blocks = static_cast<int>((outCount + static_cast<size_t>(threads) - 1) / static_cast<size_t>(threads));
-
     const auto launchErr = launchDecimatorKernel(in, out, outCount, currentPhase, sps, blocks, threads);
     if (launchErr != cudaSuccess) {
         if (error) {
             *error = std::string("Decimator::run failed: kernel launch failed: ") + cudaGetErrorString(launchErr);
-        }
-        return false;
-    }
-
-    const auto syncErr = cudaDeviceSynchronize();
-    if (syncErr != cudaSuccess) {
-        if (error) {
-            *error = std::string("Decimator::run failed: kernel execution failed: ") + cudaGetErrorString(syncErr);
         }
         return false;
     }
@@ -119,6 +111,43 @@ bool Decimator::init() {
 
     m_currentPhase = static_cast<size_t>(m_offset);
     m_initializedState = true;
+    // Warm-up kernel/module path to avoid first-run latency spike on the first real block.
+    const auto tWarmupStart = std::chrono::steady_clock::now();
+    auto warmupIn = std::make_shared<GpuComplexFloatSignal>(1);
+    auto warmupOut = std::make_shared<GpuComplexFloatSignal>(1);
+    if (!warmupIn || !warmupOut || !warmupIn->isValid() || !warmupOut->isValid()) {
+        ERROR << "Decimator::init failed: unable to allocate warm-up buffers." << std::endl;
+        return false;
+    }
+
+    cuComplex warmSample = make_cuComplex(0.0f, 0.0f);
+    warmupIn->setDataFromHost(&warmSample, 1);
+    if (!warmupIn->isValid()) {
+        ERROR << "Decimator::init failed: unable to upload warm-up sample." << std::endl;
+        return false;
+    }
+
+    std::string warmupError;
+    if (!runDecimatorCuda(
+            warmupIn->getDeviceData(),
+            1,
+            warmupOut->getDeviceData(),
+            m_samplesPerSymbol,
+            0,
+            &warmupError)) {
+        ERROR << "Decimator::init warm-up failed: " << warmupError << std::endl;
+        return false;
+    }
+
+    const auto warmupSyncErr = cudaDeviceSynchronize();
+    if (warmupSyncErr != cudaSuccess) {
+        ERROR << "Decimator::init warm-up sync failed: " << cudaGetErrorString(warmupSyncErr) << std::endl;
+        return false;
+    }
+
+    const auto tWarmupEnd = std::chrono::steady_clock::now();
+    const auto warmupTotalUs = std::chrono::duration_cast<std::chrono::microseconds>(tWarmupEnd - tWarmupStart).count();
+    DEBUG << "Decimator::init warm-up elapsed_total_us=" << warmupTotalUs << std::endl;
     return true;
 }
 
@@ -161,13 +190,20 @@ bool Decimator::run() {
 
     const size_t sps = static_cast<size_t>(m_samplesPerSymbol);
     const size_t outCount = (m_currentPhase < inputSize) ? (1 + ((inputSize - 1 - m_currentPhase) / sps)) : 0;
-
-    auto out = std::make_shared<GpuComplexFloatSignal>(std::max<size_t>(1, outCount));
-    if (!out || !out->isValid()) {
-        ERROR << "Decimator::run failed: unable to allocate output GPU buffer." << std::endl;
-        return false;
+    const size_t requiredCapacity = std::max<size_t>(1, outCount);
+    if (!m_outData) {
+        m_outData = std::make_shared<GpuComplexFloatSignal>(requiredCapacity);
+        if (!m_outData || !m_outData->isValid()) {
+            ERROR << "Decimator::run failed: unable to allocate output GPU buffer." << std::endl;
+            return false;
+        }
+    } else if (m_outData->availableSize() < requiredCapacity) {
+        if (!m_outData->reserve(requiredCapacity) || !m_outData->isValid()) {
+            ERROR << "Decimator::run failed: unable to grow output GPU buffer." << std::endl;
+            return false;
+        }
     }
-    if (!out->setLogicalSize(outCount)) {
+    if (!m_outData->setLogicalSize(outCount)) {
         ERROR << "Decimator::run failed: unable to set output logical size." << std::endl;
         return false;
     }
@@ -176,21 +212,19 @@ bool Decimator::run() {
     if (!runDecimatorCuda(
             m_inData->getDeviceData(),
             inputSize,
-            out->getDeviceData(),
+            m_outData->getDeviceData(),
             m_samplesPerSymbol,
             m_currentPhase,
             &error)) {
         ERROR << error << std::endl;
         return false;
     }
-
     size_t index = m_currentPhase + (outCount * sps);
     m_currentPhase = index - inputSize;
     if (m_currentPhase >= sps) {
         m_currentPhase %= sps;
     }
 
-    m_outData = out;
     return true;
 }
 

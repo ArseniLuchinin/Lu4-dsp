@@ -76,6 +76,7 @@ bool QPSKDecision::run() {
             return false;
         }
 
+        // TODO Нужна ли здесь синхронизация?
         const auto syncErr = cudaDeviceSynchronize();
         if (syncErr != cudaSuccess) {
             ERROR << "QPSKDecision::run failed: kernel execution failed: " << cudaGetErrorString(syncErr) << std::endl;

@@ -9,6 +9,10 @@ add_library(${PROJECT_NAME} SHARED
     src/DecimatorCuda.cu
 )
 
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CUDA_ARCHITECTURES 75
+)
+
 target_include_directories(${PROJECT_NAME}
     PRIVATE
         include
