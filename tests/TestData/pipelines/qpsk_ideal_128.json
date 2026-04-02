@@ -1,0 +1,53 @@
+{
+  "variables": "tests/TestData/variables/qpsk_variables.toml",
+  "conveyors": [
+    {
+      "name": "QPSK ideal pipeline",
+      "modules": [
+        {
+          "name": "FileSrc",
+          "params": {
+            "file name": "tests/TestData/signals/qpsk_ideal_signal.bin",
+            "data type": "complex",
+            "max size": "$MAX_SIZE"
+          }
+        },
+        {
+          "name": "Decimator",
+          "params": {
+            "samples per symbol": "$QPSK_SPS",
+            "offset": 0
+          }
+        },
+        {
+          "name": "CarrierPhaseEstimator",
+          "params": {
+            "phase tag": "qpsk_phase"
+          }
+        },
+        {
+          "name": "PhaseRotator",
+          "params": {
+            "phase tag": "qpsk_phase"
+          }
+        },
+        {
+          "name": "QPSKDecision"
+        },
+        {
+          "name": "BitPacker",
+          "params": {
+            "bit order": "msb-first",
+            "flush tail": false
+          }
+        },
+        {
+          "name": "TextFileWriter",
+          "params": {
+            "file name": "tests/TestData/signals/qpsk_ideal_decoded.txt"
+          }
+        }
+      ]
+    }
+  ]
+}
