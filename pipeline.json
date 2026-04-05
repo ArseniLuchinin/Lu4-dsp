@@ -51,15 +51,9 @@
           }
         },
         {
-          "name": "CarrierPhaseEstimator",
+          "name": "CarrierRecovery",
           "params": {
-            "phase tag": "qpsk_phase"
-          }
-        },
-        {
-          "name": "PhaseRotator",
-          "params": {
-            "phase tag": "qpsk_phase"
+            "order": 4
           }
         },
         {

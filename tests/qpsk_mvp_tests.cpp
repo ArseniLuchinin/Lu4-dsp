@@ -1,9 +1,8 @@
 #include <BitPacker.hpp>
-#include <CarrierPhaseEstimator.hpp>
+#include <CarrierRecovery.hpp>
 #include <Decimator.hpp>
 #include <FIR_filter.hpp>
 #include <FileSrc.hpp>
-#include <PhaseRotator.hpp>
 #include <QPSKDecision.hpp>
 #include <RRCCompute.hpp>
 
@@ -182,13 +181,9 @@ TEST(QpskMvpTest, MiniE2E_QpskChain_InputEqualsOutput_Red)
         'Q', 'P', 'S', 'K', ' ', 'm', 'i', 'n', 'i', ' ', 'e', '2', 'e', '\n'
     };
 
-    CarrierPhaseEstimator estimator;
-    estimator.setParam("phase tag", std::string("phase_test_tag_mini_e2e"));
-    ASSERT_TRUE(estimator.init());
-
-    PhaseRotator rotator;
-    rotator.setParam("phase tag", std::string("phase_test_tag_mini_e2e"));
-    ASSERT_TRUE(rotator.init());
+    CarrierRecovery recovery;
+    recovery.setParam("order", int32_t(4));
+    ASSERT_TRUE(recovery.init());
 
     QPSKDecision decision;
     ASSERT_TRUE(decision.init());
@@ -198,13 +193,10 @@ TEST(QpskMvpTest, MiniE2E_QpskChain_InputEqualsOutput_Red)
     packer.setParam("flush tail", false);
     ASSERT_TRUE(packer.init());
 
-    ASSERT_TRUE(estimator.setData(makePhaseShiftedQpskSymbols(inputBytes, 0.3f)));
-    ASSERT_TRUE(estimator.run());
+    ASSERT_TRUE(recovery.setData(makePhaseShiftedQpskSymbols(inputBytes, 0.3f)));
+    ASSERT_TRUE(recovery.run());
 
-    ASSERT_TRUE(rotator.setData(estimator.getData()));
-    ASSERT_TRUE(rotator.run());
-
-    ASSERT_TRUE(decision.setData(rotator.getData()));
+    ASSERT_TRUE(decision.setData(recovery.getData()));
     ASSERT_TRUE(decision.run());
 
     ASSERT_TRUE(packer.setData(decision.getData()));
@@ -234,13 +226,9 @@ TEST(QpskMvpTest, DemodMiniE2E_WithDecimatorAndKnownOffset)
     decimator.setParam("offset", int32_t(offset));
     ASSERT_TRUE(decimator.init());
 
-    CarrierPhaseEstimator estimator;
-    estimator.setParam("phase tag", std::string("phase_test_tag_decimator_mini_e2e"));
-    ASSERT_TRUE(estimator.init());
-
-    PhaseRotator rotator;
-    rotator.setParam("phase tag", std::string("phase_test_tag_decimator_mini_e2e"));
-    ASSERT_TRUE(rotator.init());
+    CarrierRecovery recovery;
+    recovery.setParam("order", int32_t(4));
+    ASSERT_TRUE(recovery.init());
 
     QPSKDecision decision;
     ASSERT_TRUE(decision.init());
@@ -253,13 +241,10 @@ TEST(QpskMvpTest, DemodMiniE2E_WithDecimatorAndKnownOffset)
     ASSERT_TRUE(decimator.setData(makeGpuComplex(oversampled)));
     ASSERT_TRUE(decimator.run());
 
-    ASSERT_TRUE(estimator.setData(decimator.getData()));
-    ASSERT_TRUE(estimator.run());
+    ASSERT_TRUE(recovery.setData(decimator.getData()));
+    ASSERT_TRUE(recovery.run());
 
-    ASSERT_TRUE(rotator.setData(estimator.getData()));
-    ASSERT_TRUE(rotator.run());
-
-    ASSERT_TRUE(decision.setData(rotator.getData()));
+    ASSERT_TRUE(decision.setData(recovery.getData()));
     ASSERT_TRUE(decision.run());
 
     ASSERT_TRUE(packer.setData(decision.getData()));
@@ -327,13 +312,9 @@ TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
     decimator.setParam("offset", int32_t(0));
     ASSERT_TRUE(decimator.init());
 
-    CarrierPhaseEstimator estimator;
-    estimator.setParam("phase tag", std::string("phase_test_tag_file_e2e"));
-    ASSERT_TRUE(estimator.init());
-
-    PhaseRotator rotator;
-    rotator.setParam("phase tag", std::string("phase_test_tag_file_e2e"));
-    ASSERT_TRUE(rotator.init());
+    CarrierRecovery recovery;
+    recovery.setParam("order", int32_t(4));
+    ASSERT_TRUE(recovery.init());
 
     QPSKDecision decision;
     ASSERT_TRUE(decision.init());
@@ -360,13 +341,10 @@ TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
         ASSERT_TRUE(decimator.setData(fir.getData()));
         ASSERT_TRUE(decimator.run());
 
-        ASSERT_TRUE(estimator.setData(decimator.getData()));
-        ASSERT_TRUE(estimator.run());
+        ASSERT_TRUE(recovery.setData(decimator.getData()));
+        ASSERT_TRUE(recovery.run());
 
-        ASSERT_TRUE(rotator.setData(estimator.getData()));
-        ASSERT_TRUE(rotator.run());
-
-        ASSERT_TRUE(decision.setData(rotator.getData()));
+        ASSERT_TRUE(decision.setData(recovery.getData()));
         ASSERT_TRUE(decision.run());
 
         ASSERT_TRUE(packer.setData(decision.getData()));
@@ -450,13 +428,9 @@ TEST(QpskMvpTest, FileE2E_QpskRrc128_InputEqualsOutput)
     decimator.setParam("offset", int32_t(0));
     ASSERT_TRUE(decimator.init());
 
-    CarrierPhaseEstimator estimator;
-    estimator.setParam("phase tag", std::string("phase_test_tag_file_e2e_rrc"));
-    ASSERT_TRUE(estimator.init());
-
-    PhaseRotator rotator;
-    rotator.setParam("phase tag", std::string("phase_test_tag_file_e2e_rrc"));
-    ASSERT_TRUE(rotator.init());
+    CarrierRecovery recovery;
+    recovery.setParam("order", int32_t(4));
+    ASSERT_TRUE(recovery.init());
 
     QPSKDecision decision;
     ASSERT_TRUE(decision.init());
@@ -484,13 +458,10 @@ TEST(QpskMvpTest, FileE2E_QpskRrc128_InputEqualsOutput)
         ASSERT_TRUE(decimator.setData(fir.getData()));
         ASSERT_TRUE(decimator.run());
 
-        ASSERT_TRUE(estimator.setData(decimator.getData()));
-        ASSERT_TRUE(estimator.run());
+        ASSERT_TRUE(recovery.setData(decimator.getData()));
+        ASSERT_TRUE(recovery.run());
 
-        ASSERT_TRUE(rotator.setData(estimator.getData()));
-        ASSERT_TRUE(rotator.run());
-
-        ASSERT_TRUE(decision.setData(rotator.getData()));
+        ASSERT_TRUE(decision.setData(recovery.getData()));
         ASSERT_TRUE(decision.run());
 
         ASSERT_TRUE(packer.setData(decision.getData()));

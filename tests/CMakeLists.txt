@@ -12,8 +12,7 @@ target_include_directories(qpsk_mvp_tests
         ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/FIR-filter/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/RRCCompute/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/Decimator/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/CarrierPhaseEstimator/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/PhaseRotator/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/CarrierRecovery/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/QPSKDecision/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/BitPacker/include
         ${MODULE_INCLUDE_DIRS}
@@ -32,8 +31,7 @@ target_link_libraries(qpsk_mvp_tests
         FIR-filter-module
         RRCCompute-module
         Decimator-module
-        CarrierPhaseEstimator-module
-        PhaseRotator-module
+        CarrierRecovery-module
         QPSKDecision-module
         BitPacker-module
         DataContainers

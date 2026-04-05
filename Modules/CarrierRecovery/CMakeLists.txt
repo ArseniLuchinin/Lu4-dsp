@@ -1,0 +1,30 @@
+cmake_minimum_required(VERSION 3.10)
+project(CarrierRecovery-module)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_library(${PROJECT_NAME} SHARED
+    src/CarrierRecovery.cpp
+    src/CarrierRecoveryCuda.cu
+)
+
+target_include_directories(${PROJECT_NAME}
+    PRIVATE
+        include
+        ${MODULE_INCLUDE_DIRS}
+        ${DATA_CONTAINERS_INCLUDE_DIRS}
+        ..
+)
+
+target_link_libraries(${PROJECT_NAME}
+    PRIVATE
+        DataContainers
+        Module
+        CUDA::cudart
+        logger
+)
+
+if(BUILD_TESTING AND PROJECT_ENABLE_GTEST)
+    add_subdirectory(tests)
+endif()
