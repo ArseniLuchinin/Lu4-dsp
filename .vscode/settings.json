@@ -36,6 +36,18 @@
           "label": "${filename}"
         }
       }
+    },
+    {
+      "pattern": "${command:cmake.buildDirectory}/tests/virtual_tx_rx_tests",
+      "cwd": "${command:cmake.buildDirectory}",
+      "testGrouping": {
+        "groupByLabel": {
+          "label": "VirtualTX/RX"
+        },
+        "groupByExecutable": {
+          "label": "${filename}"
+        }
+      }
     }
   ]
 }

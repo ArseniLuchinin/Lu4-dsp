@@ -76,3 +76,35 @@ gtest_discover_tests(data_container_copy_tests
         LABELS "module"
         TIMEOUT 30
 )
+
+# ============================================================================
+# Virtual TX/RX Broadcaster Tests
+# ============================================================================
+
+add_executable(virtual_tx_rx_tests
+    virtual_tx_rx_tests.cpp
+)
+
+set_target_properties(virtual_tx_rx_tests PROPERTIES
+    FOLDER "Tests/Unit"
+)
+
+target_include_directories(virtual_tx_rx_tests
+    PRIVATE
+        ${MODULE_INCLUDE_DIRS}
+        ${DATA_CONTAINERS_INCLUDE_DIRS}
+)
+
+target_link_libraries(virtual_tx_rx_tests
+    PRIVATE
+        GTest::gtest_main
+        DataContainers
+        Module
+        CUDA::cudart
+)
+
+gtest_discover_tests(virtual_tx_rx_tests
+    PROPERTIES
+        LABELS "module"
+        TIMEOUT 60
+)
