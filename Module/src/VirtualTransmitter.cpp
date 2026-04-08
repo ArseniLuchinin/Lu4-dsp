@@ -119,20 +119,24 @@ std::shared_ptr<IData> VirtualTransmitter::waitRxData(const std::string& name) {
         std::exit(1);
     }
 
-    // Копируем данные (каждый RX получает свою копию)
-    const auto dataCopy = slot.data->copy();
+    // Копируем данные (каждый RX получает свою копию),
+    // последний RX получает оригинал через move (без копирования)
+    std::shared_ptr<IData> dataCopy;
     slot.deliveredCount++;
+
+    if (slot.deliveredCount >= slot.expectedReceivers) {
+        // Последний RX — забирает оригинал
+        dataCopy = std::move(slot.data);
+        slot.rxCv.notify_all();
+    } else {
+        // Остальные — получают копию
+        dataCopy = slot.data->copy();
+    }
 
     std::cout << "[INFO] VirtualTransmitter::waitRxData received tag='" << name
               << "', iteration " << slot.iteration
               << ", delivered " << slot.deliveredCount
               << "/" << slot.expectedReceivers << std::endl;
-
-    // Если все получили — очищаем слот и будим TX (если ждёт)
-    if (slot.deliveredCount >= slot.expectedReceivers) {
-        slot.data = nullptr;
-        slot.rxCv.notify_all();
-    }
 
     return dataCopy;
 }
@@ -150,12 +154,16 @@ std::shared_ptr<IData> VirtualTransmitter::rxData(const std::string& name) {
         return nullptr;
     }
 
-    const auto dataCopy = slot.data->copy();
     slot.deliveredCount++;
 
+    std::shared_ptr<IData> dataCopy;
     if (slot.deliveredCount >= slot.expectedReceivers) {
-        slot.data = nullptr;
+        // Последний RX — забирает оригинал
+        dataCopy = std::move(slot.data);
         slot.rxCv.notify_all();
+    } else {
+        // Остальные — получают копию
+        dataCopy = slot.data->copy();
     }
 
     return dataCopy;

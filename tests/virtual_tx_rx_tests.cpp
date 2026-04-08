@@ -175,6 +175,44 @@ TEST(BroadcastTest, OneTxToThreeRx_AllReceiveData)
 }
 
 // ============================================================================
+// Последний RX получает оригинал (без копирования)
+// ============================================================================
+
+TEST(BroadcastTest, LastRxGetsOriginal_NotCopy)
+{
+    if (!isCudaAvailable()) {
+        GTEST_SKIP() << "CUDA device is unavailable.";
+    }
+
+    resetTransmitterState();
+
+    VirtualTransmitter tx;
+    tx.registerTx("tag_move", "TestTX");
+    tx.registerRx("tag_move");
+    tx.registerRx("tag_move");
+
+    auto original = makeGpuFloatSignal(5, 42.0f);
+    ASSERT_NE(original, nullptr);
+    const void* originalPtr = original->getDeviceData();
+
+    tx.txData(original, "tag_move");
+
+    // Первый RX — должен получить копию (другой указатель)
+    auto rx1 = tx.waitRxData("tag_move");
+    ASSERT_NE(rx1, nullptr);
+    auto rx1Gpu = std::dynamic_pointer_cast<GpuFloatSignal>(rx1);
+    ASSERT_NE(rx1Gpu, nullptr);
+    EXPECT_NE(rx1Gpu->getDeviceData(), originalPtr);  // копия ≠ оригинал
+
+    // Второй (последний) RX — должен получить оригинал (тот же указатель)
+    auto rx2 = tx.waitRxData("tag_move");
+    ASSERT_NE(rx2, nullptr);
+    auto rx2Gpu = std::dynamic_pointer_cast<GpuFloatSignal>(rx2);
+    ASSERT_NE(rx2Gpu, nullptr);
+    EXPECT_EQ(rx2Gpu->getDeviceData(), originalPtr);  // оригинал!
+}
+
+// ============================================================================
 // Нормальный сценарий: TX не блокируется когда RX забирает данные
 // ============================================================================
 
