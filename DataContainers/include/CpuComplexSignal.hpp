@@ -36,6 +36,8 @@ public:
         return m_data != nullptr;
     }
 
+    std::shared_ptr<IData> copy() const override;
+
 private:
     cuComplex* m_data = nullptr;
     size_t m_size = 0;

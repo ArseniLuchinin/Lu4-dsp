@@ -56,6 +56,8 @@ public:
 
     const char* name() const;
 
+    std::shared_ptr<IData> copy() const override;
+
 protected:
     void freeData();
     bool checkData(const T* data);

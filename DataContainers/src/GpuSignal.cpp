@@ -1,6 +1,7 @@
 #include <GpuSignal.hpp>
 
 #include <cuda_runtime.h>
+#include <iostream>
 
 template<typename T, typename Tag>
 GpuSignal<T, Tag>::GpuSignal() : IGpuSignalData(name()) {}
@@ -215,6 +216,33 @@ bool GpuSignal<T, Tag>::checkData(const T* data) {
     }
 
     return true;
+}
+
+template<typename T, typename Tag>
+std::shared_ptr<IData> GpuSignal<T, Tag>::copy() const {
+    if (!isValid()) {
+        std::cerr << "GpuSignal::copy failed: source data is invalid." << std::endl;
+        return nullptr;
+    }
+
+    auto result = std::make_shared<GpuSignal<T, Tag>>(m_size);
+    if (!result->isValid()) {
+        std::cerr << "GpuSignal::copy failed: failed to allocate GPU memory for copy." << std::endl;
+        return nullptr;
+    }
+
+    const auto err = cudaMemcpy(
+        result->getDeviceData(),
+        m_data,
+        sizeof(T) * m_size,
+        cudaMemcpyDeviceToDevice);
+    if (err != cudaSuccess) {
+        std::cerr << "GpuSignal::copy failed: cudaMemcpyDeviceToDevice failed: "
+                  << cudaGetErrorString(err) << std::endl;
+        return nullptr;
+    }
+
+    return result;
 }
 
 #include <GpuFloatSignal.hpp>

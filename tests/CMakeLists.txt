@@ -45,3 +45,34 @@ gtest_discover_tests(qpsk_mvp_tests
         LABELS "e2e"
         TIMEOUT 120
 )
+
+# ============================================================================
+# Data Container Copy Tests
+# ============================================================================
+
+add_executable(data_container_copy_tests
+    data_container_copy_tests.cpp
+)
+
+set_target_properties(data_container_copy_tests PROPERTIES
+    FOLDER "Tests/Unit"
+)
+
+target_include_directories(data_container_copy_tests
+    PRIVATE
+        ${MODULE_INCLUDE_DIRS}
+        ${DATA_CONTAINERS_INCLUDE_DIRS}
+)
+
+target_link_libraries(data_container_copy_tests
+    PRIVATE
+        GTest::gtest_main
+        DataContainers
+        CUDA::cudart
+)
+
+gtest_discover_tests(data_container_copy_tests
+    PROPERTIES
+        LABELS "module"
+        TIMEOUT 30
+)

@@ -24,6 +24,18 @@
           "label": "${filename}"
         }
       }
+    },
+    {
+      "pattern": "${command:cmake.buildDirectory}/tests/data_container_copy_tests",
+      "cwd": "${command:cmake.buildDirectory}",
+      "testGrouping": {
+        "groupByLabel": {
+          "label": "Containers"
+        },
+        "groupByExecutable": {
+          "label": "${filename}"
+        }
+      }
     }
   ]
 }

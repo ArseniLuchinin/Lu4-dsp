@@ -3,6 +3,7 @@
 
 #include <logger.hpp>
 
+#include <memory>
 #include <string>
 
 class IData {
@@ -37,6 +38,17 @@ public:
     * @return true - если можно использовать данные, false - если нет
     */
     virtual bool isValid() const = 0;
+
+    /*!
+    * @brief Копирует данные и возвращает новый экземпляр
+    * @return std::shared_ptr<IData> - копия данных, или nullptr при ошибке
+    *
+    * @note
+    * Создаёт глубокую копию данных (CPU или GPU).
+    * Для GPU контейнеров используется cudaMemcpy.
+    * Возвращаемый объект владеет своей памятью.
+    */
+    virtual std::shared_ptr<IData> copy() const = 0;
 
 protected:
     src::severity_channel_logger<

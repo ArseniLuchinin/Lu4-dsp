@@ -1,6 +1,7 @@
 #include <CpuComplexSignal.hpp>
 
 #include <iostream>
+#include <cstring>
 
 CpuComplexSignal::CpuComplexSignal(cuComplex* data, size_t size)
     : IData("CPU complex signal")
@@ -49,4 +50,16 @@ size_t CpuComplexSignal::size() const {
 
 cuComplex* CpuComplexSignal::getData() const {
     return m_data;
+}
+
+std::shared_ptr<IData> CpuComplexSignal::copy() const {
+    if (!isValid()) {
+        std::cerr << "CpuComplexSignal::copy failed: source data is invalid." << std::endl;
+        return nullptr;
+    }
+
+    cuComplex* newData = new cuComplex[m_size];
+    std::memcpy(newData, m_data, m_size * sizeof(cuComplex));
+
+    return std::make_shared<CpuComplexSignal>(newData, m_size);
 }

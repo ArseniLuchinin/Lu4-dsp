@@ -1,5 +1,6 @@
 #include <CpuFloatSignal.hpp>
 #include <iostream>
+#include <cstring>
 
 // Конструктор
 CpuFloatSignal::CpuFloatSignal(float* data, size_t size) :
@@ -45,4 +46,16 @@ size_t CpuFloatSignal::size() const {
 
 float* CpuFloatSignal::getData() const {
     return m_data;
+}
+
+std::shared_ptr<IData> CpuFloatSignal::copy() const {
+    if (!isValid()) {
+        std::cerr << "CpuFloatSignal::copy failed: source data is invalid." << std::endl;
+        return nullptr;
+    }
+
+    float* newData = new float[m_size];
+    std::memcpy(newData, m_data, m_size * sizeof(float));
+
+    return std::make_shared<CpuFloatSignal>(newData, m_size);
 }

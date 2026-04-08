@@ -22,6 +22,10 @@ public:
     inline bool isValid() const override {
         return false;
     }
+
+    std::shared_ptr<IData> copy() const override {
+        return std::make_shared<EmptyContainer>();
+    }
 };
 
 #endif // EMPTY_CONTAINER_HPP
