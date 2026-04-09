@@ -5,12 +5,23 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/utility/setup/console.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/support/date_time.hpp> 
+#include <boost/log/support/date_time.hpp>
 
 namespace logging = boost::log;
 namespace expr = boost::log::expressions;
 
 bool checkGPU();
+
+/// ANSI-коды цветов для терминала
+namespace colors {
+    inline const char* reset   = "\033[0m";
+    inline const char* red     = "\033[31m";
+    inline const char* green   = "\033[32m";
+    inline const char* yellow  = "\033[33m";
+    inline const char* blue    = "\033[34m";
+    inline const char* cyan    = "\033[36m";
+    inline const char* gray    = "\033[90m";
+}
 
 void init_logging()
 {
@@ -21,7 +32,24 @@ void init_logging()
                 expr::stream
                     << "[" << expr::attr<unsigned int>("LineID") << "] "
                     << "[" << expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%H:%M:%S.%f") << "] "
-                    << "[" << expr::attr<boost::log::trivial::severity_level>("Severity") << "] " 
+                    << "["
+                    << expr::if_(expr::attr<boost::log::trivial::severity_level>("Severity") == boost::log::trivial::error)
+                       [
+                           expr::stream << colors::red << "error" << colors::reset
+                       ]
+                    << expr::if_(expr::attr<boost::log::trivial::severity_level>("Severity") == boost::log::trivial::warning)
+                       [
+                           expr::stream << colors::yellow << "warning" << colors::reset
+                       ]
+                    << expr::if_(expr::attr<boost::log::trivial::severity_level>("Severity") == boost::log::trivial::info)
+                       [
+                           expr::stream << colors::green << "info" << colors::reset
+                       ]
+                    << expr::if_(expr::attr<boost::log::trivial::severity_level>("Severity") == boost::log::trivial::debug)
+                       [
+                           expr::stream << colors::cyan << "debug" << colors::reset
+                       ]
+                    << "] "
                     << "[" << expr::attr<std::string>("Channel") << "] "
                     << expr::smessage
             )
