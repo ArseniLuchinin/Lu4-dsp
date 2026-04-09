@@ -68,7 +68,7 @@ TEST(BroadcastTest, OneTxToOneRx_DataTransferred)
     resetTransmitterState();
 
     VirtualTransmitter tx;
-    tx.registerTx("tag_1to1", "TestTX");
+    tx.registerTx("tag_1to1");
     tx.registerRx("tag_1to1");
 
     auto original = makeGpuFloatSignal(10, 42.0f);
@@ -103,7 +103,7 @@ TEST(BroadcastTest, OneTxToTwoRx_BothReceiveSameData)
     resetTransmitterState();
 
     VirtualTransmitter tx;
-    tx.registerTx("tag_1to2", "TestTX");
+    tx.registerTx("tag_1to2");
     tx.registerRx("tag_1to2");
     tx.registerRx("tag_1to2");
 
@@ -151,7 +151,7 @@ TEST(BroadcastTest, OneTxToThreeRx_AllReceiveData)
     resetTransmitterState();
 
     VirtualTransmitter tx;
-    tx.registerTx("tag_1to3", "TestTX");
+    tx.registerTx("tag_1to3");
     tx.registerRx("tag_1to3");
     tx.registerRx("tag_1to3");
     tx.registerRx("tag_1to3");
@@ -187,7 +187,7 @@ TEST(BroadcastTest, LastRxGetsOriginal_NotCopy)
     resetTransmitterState();
 
     VirtualTransmitter tx;
-    tx.registerTx("tag_move", "TestTX");
+    tx.registerTx("tag_move");
     tx.registerRx("tag_move");
     tx.registerRx("tag_move");
 
@@ -225,7 +225,7 @@ TEST(BroadcastTest, TxDoesNotBlock_WhenRxConsumesPromptly)
     resetTransmitterState();
 
     VirtualTransmitter tx;
-    tx.registerTx("tag_block", "TestTX");
+    tx.registerTx("tag_block");
     tx.registerRx("tag_block");
 
     // Первая отправка — проходит сразу
@@ -268,7 +268,7 @@ TEST(BroadcastTest, TxBlocks_WhenRxDoesNotConsume)
     VirtualTransmitter::setTimeoutMs(3000);  // 3 сек для теста
 
     VirtualTransmitter tx;
-    tx.registerTx("tag_real_block", "TestTX");
+    tx.registerTx("tag_real_block");
     tx.registerRx("tag_real_block");
 
     // TX отправляет первую порцию
@@ -327,12 +327,24 @@ TEST(BroadcastTest, DuplicateTxOnSameTag_Fails)
     VirtualTransmitter tx1;
     VirtualTransmitter tx2;
 
-    // Первый TX регистрирует тег — успех
-    bool result1 = tx1.registerTx("tag_conflict", "TX_One");
+    bool result1 = tx1.registerTx("tag_conflict");
     EXPECT_TRUE(result1);
 
-    // Второй TX на тот же тег — ошибка
-    bool result2 = tx2.registerTx("tag_conflict", "TX_Two");
+    bool result2 = tx2.registerTx("tag_conflict");
+    EXPECT_FALSE(result2);
+}
+
+TEST(BroadcastTest, SameTagRegisteredOnce_Fails)
+{
+    resetTransmitterState();
+
+    VirtualTransmitter tx1;
+    VirtualTransmitter tx2;
+
+    bool result1 = tx1.registerTx("tag_same");
+    EXPECT_TRUE(result1);
+
+    bool result2 = tx2.registerTx("tag_same");
     EXPECT_FALSE(result2);
 }
 
@@ -345,7 +357,7 @@ TEST(BroadcastTest, RxAutoIncrement_CorrectCount)
     resetTransmitterState();
 
     VirtualTransmitter tx;
-    tx.registerTx("tag_count", "TestTX");
+    tx.registerTx("tag_count");
 
     // Регистрируем 3 RX
     tx.registerRx("tag_count");
@@ -387,7 +399,7 @@ TEST(BroadcastTest, CheckData_ReturnsTrueWhenDataAvailable)
     resetTransmitterState();
 
     VirtualTransmitter tx;
-    tx.registerTx("tag_check", "TestTX");
+    tx.registerTx("tag_check");
     tx.registerRx("tag_check");
 
     // До отправки — данных нет
@@ -419,7 +431,7 @@ TEST(BroadcastTest, RxData_NonBlocking_ReturnsNullWhenEmpty)
     resetTransmitterState();
 
     VirtualTransmitter tx;
-    tx.registerTx("tag_nonblock", "TestTX");
+    tx.registerTx("tag_nonblock");
     tx.registerRx("tag_nonblock");
 
     // До отправки — nullptr

@@ -20,7 +20,7 @@ struct BroadcastSlot {
     size_t expectedReceivers = 0;          ///< Количество RX (авто-подсчёт из registerRx)
     size_t deliveredCount = 0;             ///< Сколько RX уже получили данные
     size_t iteration = 0;                  ///< Номер текущей итерации рассылки
-    std::string txOwner;                   ///< Имя TX-модуля (для валидации уникальности тега)
+    bool txRegistered = false;             ///< Зарегистрирован ли TX (тег может иметь только один TX)
     std::condition_variable rxCv;          ///< CV для синхронизации TX/RX
 };
 
@@ -38,7 +38,7 @@ public:
     /*! @brief Зарегистрировать TX для тега (валидация уникальности)
      *  @return false если тег уже занят другим TX
     */
-    static bool registerTx(const std::string& name, const std::string& txModuleName);
+    static bool registerTx(const std::string& name);
 
     /*! @brief Зарегистрировать RX для тега (авто-инкремент счётчика) */
     static void registerRx(const std::string& name);

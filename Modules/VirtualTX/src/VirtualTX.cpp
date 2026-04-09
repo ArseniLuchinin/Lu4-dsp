@@ -55,7 +55,7 @@ void VirtualTX::setParam(const std::string& paramName, const std::any& value) {
         m_tag = std::any_cast<std::string>(resolved);
 
         // Валидация: тег может принадлежать только одному TX
-        if (!VirtualTransmitter::registerTx(m_tag, "VirtualTX")) {
+        if (!VirtualTransmitter::registerTx(m_tag)) {
             ERROR << "VirtualTX::setParam failed: tag='" << m_tag
                   << "' is already registered by another TX." << std::endl;
             return;

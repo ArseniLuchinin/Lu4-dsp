@@ -13,22 +13,20 @@ std::atomic<int> VirtualTransmitter::s_timeoutMs{45000};  // 45 секунд п�
 // Регистрация TX/RX
 // ============================================================================
 
-bool VirtualTransmitter::registerTx(const std::string& name, const std::string& txModuleName) {
+bool VirtualTransmitter::registerTx(const std::string& name) {
     std::lock_guard<std::mutex> lock(s_mutex);
 
     auto& slot = s_broadcastSlots[name];
 
-    // Если тег уже зарегистрирован другим TX — ошибка
-    if (!slot.txOwner.empty() && slot.txOwner != txModuleName) {
+    // Тег может принадлежать только одному TX
+    if (slot.txRegistered) {
         std::cerr << "VirtualTransmitter::registerTx failed: tag='" << name
-                  << "' already registered by TX='" << slot.txOwner
-                  << "', conflict with '" << txModuleName << "'." << std::endl;
+                  << "' is already registered." << std::endl;
         return false;
     }
 
-    slot.txOwner = txModuleName;
-    std::cout << "[DEBUG] VirtualTransmitter::registerTx tag='" << name
-              << "' owned by '" << txModuleName << "'." << std::endl;
+    slot.txRegistered = true;
+    std::cout << "[DEBUG] VirtualTransmitter::registerTx tag='" << name << "'." << std::endl;
     return true;
 }
 
