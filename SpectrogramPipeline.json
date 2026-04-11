@@ -1,0 +1,53 @@
+{
+  "variables": "/home/luchinin/my_source/Course_poject/Server/variables.toml",
+  "conveyors": [
+    {
+      "name": "Spectrogram conveyor",
+      "modules": [
+        {
+          "name": "FileSrc",
+          "params": {
+            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_signal.bin",
+            "data type": "complex",
+            "max size": "$MAX_SIZE"
+          }
+        },
+        {
+          "name": "FFT",
+          "params": {
+            "fft size": "$FFT_SIZE",
+            "hop size": "$FFT_HOP_SIZE"
+          }
+        },
+        {
+          "name": "CS2AS",
+          "params": {
+            "fft size": "$FFT_SIZE",
+            "normalize by fft size": true
+          }
+        },
+        {                                                                                               
+          "name": "FFT_Shift",                                                                          
+          "params": {                                                                                   
+            "fft size": "$FFT_SIZE"                                                                     
+          }                                                                                             
+        },                                                                                             
+        {
+          "name": "SpectrogramPlot",
+          "params": {
+            "sample rate": "$SAMPLE_RATE",
+            "fft size": "$FFT_SIZE",
+            "hop size": "$FFT_HOP_SIZE",
+            "centered spectrum": true,
+            "db min": -60.0,
+            "db max": 10.0,
+            "mask below db": -80.0,
+            "show": false,
+            "save path": "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogram",
+            "png compression": 1
+          }
+        }
+      ]
+    }
+  ]
+}

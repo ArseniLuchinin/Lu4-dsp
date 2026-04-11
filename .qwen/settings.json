@@ -3,7 +3,11 @@
     "allow": [
       "Bash(cmake *)",
       "Bash(ctest *)",
-      "Bash(./build/computing_server)"
+      "Bash(./build/computing_server)",
+      "Bash(echo *)",
+      "Bash(python3 *)",
+      "Bash(/usr/bin/time *)",
+      "Bash(timeout *)"
     ]
   },
   "$version": 3
