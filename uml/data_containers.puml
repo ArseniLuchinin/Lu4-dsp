@@ -1,0 +1,205 @@
+@startuml
+title DataContainers — Иерархия данных
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundCorners 5
+
+' ===== Enum =====
+enum GpuSampleType {
+    Float32
+    ComplexFloat32
+    UInt8
+}
+
+' ===== Tag structs =====
+class gpu_float_tag {
+    {static} name : char*
+}
+
+class gpu_complex_float_tag {
+    {static} name : char*
+}
+
+class gpu_byte_tag {
+    {static} name : char*
+}
+
+' ===== Abstract base =====
+abstract class IData {
+    - m_dataName : String
+    # logger : severity_channel_logger
+    + {abstract} size() : size_t
+    + {abstract} availableSize() : size_t
+    + {abstract} reserve(size) : bool
+    + {abstract} isValid() : bool
+    + {abstract} copy() : shared_ptr<IData>
+    + getDataName() : const String&
+}
+
+note right of IData
+  Базовый абстрактный интерфейс
+  для всех контейнеров данных.
+  Память выделяется только в reserve().
+end note
+
+' ===== GPU abstract interface =====
+abstract class IGpuSignalData {
+    + {abstract} sampleType() : GpuSampleType
+    + {abstract} deviceDataRaw() : void*
+    + {abstract} deviceDataRaw() const : const void*
+    + {abstract} elementSizeBytes() : size_t
+    + {abstract} setLogicalSize(size) : bool
+}
+
+note right of IGpuSignalData
+  Runtime-интерфейс для GPU сигналов.
+  Позволяет работать с GPU данными
+  без знания конкретного типа элемента.
+end note
+
+' ===== Template GpuSignal =====
+class GpuSignal {
+    - m_size : size_t = 0
+    - m_resedSize : size_t = 0
+    - m_siValid : bool = false
+    - m_data : T* = nullptr
+    + reserve(size) : bool
+    + setDataFromHost(T*, size) : void
+    + setDataFromDevice(T*, size) : void
+    + setLogicalSize(size) : bool
+    + size() : size_t
+    + availableSize() : size_t
+    + isValid() : bool
+    + sampleType() : GpuSampleType
+    + deviceDataRaw() : void*
+    + deviceDataRaw() const : const void*
+    + elementSizeBytes() : size_t
+    + getDeviceData() : T*
+    + getDeviceData() const : const T*
+    + name() : const char*
+    + copy() : shared_ptr<IData>
+    # freeData() : void
+    # checkData(T*) : bool
+}
+
+note right of GpuSignal
+  Шаблонный класс GPU сигнала.
+  Копирование запрещено.
+  Поддерживает move-семантику.
+  m_data — указатель на device memory.
+end note
+
+' ===== Type traits =====
+class GpuSampleTypeTraits {
+    {static} value : GpuSampleType
+}
+
+note right of GpuSampleTypeTraits
+  Специализации:
+  GpuSampleTypeTraits&lt;float&gt; → Float32
+  GpuSampleTypeTraits&lt;cuComplex&gt; → ComplexFloat32
+  GpuSampleTypeTraits&lt;uint8_t&gt; → UInt8
+end note
+
+' ===== Concrete GPU signals =====
+class GpuFloatSignal
+class GpuComplexFloatSignal
+class GpuByteSignal
+
+note right of GpuFloatSignal
+  GpuSignal&lt;float, gpu_float_tag&gt;
+end note
+
+note right of GpuComplexFloatSignal
+  GpuSignal&lt;cuComplex, gpu_complex_float_tag&gt;
+end note
+
+note right of GpuByteSignal
+  GpuSignal&lt;uint8_t, gpu_byte_tag&gt;
+end note
+
+' ===== CPU signals =====
+class CpuFloatSignal {
+    - m_data : float* = nullptr
+    - m_size : size_t = 0
+    + fromGpu(IData) : shared_ptr<CpuFloatSignal>
+    + size() : size_t
+    + getData() : float*
+    + availableSize() : size_t
+    + reserve(size) : bool
+    + isValid() : bool
+    + copy() : shared_ptr<IData>
+}
+
+note right of CpuFloatSignal
+  Копирование запрещено.
+  reserve() — no-op (всегда true).
+  fromGpu() — скачивает данные с GPU.
+end note
+
+class CpuComplexSignal {
+    - m_data : cuComplex* = nullptr
+    - m_size : size_t = 0
+    + fromGpu(IData) : shared_ptr<CpuComplexSignal>
+    + size() : size_t
+    + getData() : cuComplex*
+    + availableSize() : size_t
+    + reserve(size) : bool
+    + isValid() : bool
+    + copy() : shared_ptr<IData>
+}
+
+note right of CpuComplexSignal
+  Аналогично CpuFloatSignal,
+  но для комплексных float.
+end note
+
+' ===== EmptyContainer =====
+class EmptyContainer {
+    + size() : size_t
+    + availableSize() : size_t
+    + reserve(size) : bool
+    + isValid() : bool
+    + copy() : shared_ptr<IData>
+}
+
+note right of EmptyContainer
+  Всегда невалиден (isValid=false).
+  Используется как placeholder.
+end note
+
+' ===== ValidationResult =====
+class ValidationResult {
+    + ok : bool = false
+    + error : String
+    + signal : shared_ptr<IGpuSignalData>
+}
+
+note right of ValidationResult
+  Результат валидации GPU сигнала.
+  Из GpuSignalUtils.hpp.
+end note
+
+' ===== Inheritance =====
+IData <|-- IGpuSignalData
+IData <|-- CpuFloatSignal
+IData <|-- CpuComplexSignal
+IData <|-- EmptyContainer
+
+IGpuSignalData <|-- GpuSignal
+
+GpuSignal <|-- GpuFloatSignal
+GpuSignal <|-- GpuComplexFloatSignal
+GpuSignal <|-- GpuByteSignal
+
+GpuSampleType ..> GpuSampleTypeTraits : используется в
+
+gpu_float_tag ..> GpuFloatSignal : тег шаблона
+gpu_complex_float_tag ..> GpuComplexFloatSignal : тег шаблона
+gpu_byte_tag ..> GpuByteSignal : тег шаблона
+
+GpuSampleType ..> IGpuSignalData : возвращает sampleType()
+ValidationResult --> IGpuSignalData : ссылка на сигнал
+
+@enduml

@@ -1,0 +1,148 @@
+@startuml
+title Module — Интерфейсы и сервисы модулей
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundCorners 5
+
+' ===== ModuleMetaData =====
+class ModuleMetaData {
+    + moduleName : String
+    + libraryFilePath : String
+    + jsonModuleFilePath : String
+}
+
+note right of ModuleMetaData
+  Метаданные модуля: имя, путь к .so,
+  путь к JSON описанию.
+  Используется IModule для инициализации.
+end note
+
+' ===== IModule =====
+abstract class IModule {
+    - m_metaData : ModuleMetaData
+    # logger : severity_channel_logger
+    + {abstract} init() : bool
+    + {abstract} run() : bool
+    + {abstract} setParam(name : String, value : any) : void
+    + {abstract} setData(data : shared_ptr<IData>) : bool
+    + {abstract} getData() : shared_ptr<IData>
+    + getMetaData() : ModuleMetaData
+}
+
+note right of IModule
+  Базовый интерфейс всех модулей обработки.
+  Копирование запрещено (нет copy ctor).
+  true = успех, false = ошибка.
+  m_metaData по умолчанию: {"Meow","meow2","meow3"}
+end note
+
+' ===== IVirtualRX =====
+class IVirtualRX {
+    - m_tag : String
+    + IVirtualRX()
+    + ~IVirtualRX()
+    + setTag(tag : String) : bool
+    + rxData() : shared_ptr<IData>
+}
+
+note right of IVirtualRX
+  Интерфейс для модулей, принимающих
+  данные через VirtualTransmitter.
+  Позволяет задать тег и получить данные.
+end note
+
+' ===== VirtualTransmitter =====
+class VirtualTransmitter {
+    - {static} s_broadcastSlots : map<String, BroadcastSlot>
+    - {static} s_receiverCounts : map<String, size_t>
+    - {static} s_mutex : mutex
+    - {static} s_timeoutMs : atomic<int>
+    + {static} registerTx(name : String) : bool
+    + {static} registerRx(name : String) : void
+    + checkData(name : String) : bool
+    + rxData(name : String) : shared_ptr<IData>
+    + waitRxData(name : String) : shared_ptr<IData>
+    + txData(data : shared_ptr<IData>, name : String) : void
+    + {static} setTimeoutMs(ms : int) : void
+    + {static} getTimeoutMs() : int
+    + {deprecated} findTeg(name : String) : bool
+}
+
+note right of VirtualTransmitter
+  Статический broadcaster для связи
+  между конвейерами. Один TX → N RX.
+  Таймаут по умолчанию: 45000 мс.
+  Тег принадлежит только одному TX.
+end note
+
+' ===== BroadcastSlot =====
+class BroadcastSlot {
+    + data : shared_ptr<IData>
+    + expectedReceivers : size_t = 0
+    + deliveredCount : size_t = 0
+    + iteration : size_t = 0
+    + txRegistered : bool = false
+    + rxCv : condition_variable
+}
+
+note right of BroadcastSlot
+  Слот рассылки: хранит данные и состояние
+  доставки. Данные удаляются когда все RX
+  получили копию.
+end note
+
+' ===== Variables (Singleton) =====
+class Variables {
+    - {static} mutex_ : shared_mutex
+    - enums_ : unordered_map<String, unordered_map<String, int>>
+    - data_ : unordered_map<String, any>
+    - {static} instance() : Variables&
+    - parseTable(tbl : toml::table) : bool
+    - processValue(key : String, node : toml::node) : bool
+    - error(key : String, msg : String, loc : String) : bool
+    + registerEnum(key : String, values : map<String, int>) : void
+    + load(filename : String) : bool
+    + get(key : String) : any
+}
+
+note right of Variables
+  Singleton для глобальных переменных
+  из variables.toml. Поддержка enum-ов
+  и thread-safe доступ через shared_mutex.
+end note
+
+' ===== VariablesResolve =====
+class VariablesResolve {
+    + resolveParamValue(value : any) : any
+}
+
+note right of VariablesResolve
+  Функция подстановки переменных:
+  если value — ссылка на $VAR_NAME,
+  разрешает её через Variables::instance().
+end note
+
+' ===== External =====
+class IData <<interface>>
+
+' ===== Relationships =====
+IModule --> ModuleMetaData : содержит
+IModule --> IData : работает с данными
+
+IVirtualRX --> IData : возвращает данные
+IVirtualRX ..> VirtualTransmitter : использует rxData()
+
+VirtualTransmitter --> BroadcastSlot : управляет слотами
+VirtualTransmitter --> IData : передаёт данные
+
+Variables ..> VariablesResolve : использует для подстановки
+Variables --> IData : косвенно (параметры модулей)
+
+note as N1
+  Модули (не показаны) реализуют IModule.
+  Модули VirtualTX/VirtualRX используют
+  VirtualTransmitter и IVirtualRX.
+end note
+
+@enduml

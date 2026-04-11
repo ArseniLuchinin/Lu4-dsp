@@ -1,0 +1,122 @@
+@startuml
+title Core — Оркестрация конвейеров
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundCorners 5
+
+' ===== ModuleFactory =====
+class ModuleFactory {
+    - m_redis : Redis
+    - modulesPackage : unordered_map<String, String>
+    - logger : severity_channel_logger
+    + ModuleFactory(modulesDir : String)
+    + findModule(moduleName : String) : String
+    + createModule(moduleName : String) : IModule*
+}
+
+note right of ModuleFactory
+  Загружает модули из директории,
+  использует Redis для кэширования
+  метаданных .so библиотек.
+  modulesPackage: имя модуля → путь к .so
+end note
+
+' ===== Conveyor =====
+class Conveyor {
+    - m_conveyorName : String
+    - m_isInitialized : bool
+    - m_modules : vector<shared_ptr<IModule>>
+    - logger : severity_channel_logger
+    + Conveyor(name : String)
+    + init() : bool
+    + run() : bool
+    + addModule(shared_ptr<IModule>) : void
+    + removeModule(index : size_t) : void
+    + getModules() : const vector<shared_ptr<IModule>>&
+    + getName() : String
+    + getIsInitialized() : bool
+}
+
+note right of Conveyor
+  Конвейер — цепочка модулей IModule.
+  init() инициализирует все модули.
+  run() запускает последовательное выполнение.
+end note
+
+' ===== ConveyorFactory =====
+class ConveyorFactory {
+    - m_factory : ModuleFactory&
+    - logger : severity_channel_logger
+    + ConveyorFactory(factory : ModuleFactory&)
+    + createFromJsonObject(obj : json::object) : shared_ptr<Conveyor>
+    + createFromJsonString(jsonStr : String) : shared_ptr<Conveyor>
+    - buildModule(conveyor : Conveyor&, obj : json::object) : bool
+    - {static} jsonToAny(value : json::value) : any
+}
+
+note right of ConveyorFactory
+  Создаёт Conveyor из JSON конфигурации.
+  Преобразует JSON-значения в std::any
+  для передачи в setParam модулей.
+end note
+
+' ===== ConveyorOrchestrator =====
+class ConveyorOrchestrator {
+    - m_configPath : String
+    - m_root : json::value
+    - m_loaded : bool = false
+    - m_moduleFactory : ModuleFactory
+    - m_conveyorFactory : ConveyorFactory
+    - m_runtimes : vector<Runtime>
+    - logger : severity_channel_logger
+    + ConveyorOrchestrator(configPath : String)
+    + load() : bool
+    + run() : bool
+    - buildConveyors() : bool
+    - loadVariables(root : json::object) : bool
+}
+
+note right of ConveyorOrchestrator
+  Главный оркестратор:
+  1. Загружает pipeline.json
+  2. Подставляет переменные из variables.toml
+  3. Строит конвейеры через ConveyorFactory
+  4. Запускает каждый Conveyor в отдельном потоке
+end note
+
+class "ConveyorOrchestrator::Runtime" as Runtime {
+    + conveyor : shared_ptr<Conveyor>
+    + thread : thread
+    + elapsedSeconds : double = 0.0
+}
+
+note right of Runtime
+  Runtime-обёртка для одного конвейера:
+  shared_ptr<Conveyor>, поток выполнения,
+  время выполнения.
+end note
+
+' ===== External (references) =====
+class IModule <<interface>>
+class IData <<interface>>
+
+' ===== Relationships =====
+ConveyorOrchestrator *-- ModuleFactory : создаёт
+ConveyorOrchestrator *-- ConveyorFactory : создаёт
+ConveyorOrchestrator o-- Runtime : содержит вектор
+Runtime --> Conveyor : управляет
+
+ConveyorFactory --> ModuleFactory : использует ссылку
+ConveyorFactory ..> Conveyor : создаёт
+ConveyorFactory ..> IModule : создаёт модули
+
+Conveyor o-- IModule : содержит цепочку
+
+ModuleFactory ..> IModule : создаёт через .so
+ModuleFactory ..> IData : косвенно (модули работают с данными)
+
+ConveyorOrchestrator ..> IData : загружает переменные
+ConveyorOrchestrator ..> IModule : через фабрику
+
+@enduml

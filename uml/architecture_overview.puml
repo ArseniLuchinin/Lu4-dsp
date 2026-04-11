@@ -1,0 +1,92 @@
+@startuml
+title Computing Server — Общая архитектура
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundCorners 5
+skinparam packageStyle rectangle
+
+' ===== Packages =====
+package "Core" {
+    class ConveyorOrchestrator
+    class Conveyor
+    class ConveyorFactory
+    class ModuleFactory
+    class "Runtime" as Runtime
+}
+
+package "Module" {
+    abstract class IModule
+    class IVirtualRX
+    class VirtualTransmitter
+    class Variables
+    class VariablesResolve
+    class ModuleMetaData
+    class BroadcastSlot
+}
+
+package "DataContainers" {
+    abstract class IData
+    abstract class IGpuSignalData
+    class GpuSignal
+    class CpuFloatSignal
+    class CpuComplexSignal
+    class EmptyContainer
+    enum GpuSampleType
+    class ValidationResult
+}
+
+' ===== Core relationships =====
+ConveyorOrchestrator *-- ModuleFactory
+ConveyorOrchestrator *-- ConveyorFactory
+ConveyorOrchestrator o-- Runtime
+Runtime --> Conveyor
+
+ConveyorFactory --> ModuleFactory
+ConveyorFactory ..> Conveyor
+Conveyor o-- IModule
+
+' ===== Module relationships =====
+IModule --> ModuleMetaData
+IModule --> IData
+IVirtualRX --> IData
+IVirtualRX ..> VirtualTransmitter
+VirtualTransmitter --> BroadcastSlot
+VirtualTransmitter --> IData
+Variables ..> VariablesResolve
+
+' ===== DataContainers relationships =====
+IData <|-- IGpuSignalData
+IData <|-- CpuFloatSignal
+IData <|-- CpuComplexSignal
+IData <|-- EmptyContainer
+IGpuSignalData <|-- GpuSignal
+GpuSampleType ..> IGpuSignalData
+ValidationResult --> IGpuSignalData
+
+' ===== Cross-package relationships =====
+Conveyor --> IModule : содержит цепочку
+ModuleFactory ..> IModule : создаёт через .so
+ConveyorOrchestrator ..> Variables : подстановка переменных
+IModule --> IData : setData/getData
+
+note as N1
+  **Конвейер выполнения:**
+  1. ConveyorOrchestrator загружает pipeline.json
+  2. Переменные подставляются из Variables (variables.toml)
+  3. ConveyorFactory создаёт Conveyor с модулями
+  4. ModuleFactory загружает .so библиотеки
+  5. Каждый Conveyor запускается в своём потоке
+  6. Модули обрабатывают IData последовательно
+  7. VirtualTransmitter связывает конвейеры
+end note
+
+note as N2
+  **Типы данных:**
+  - GPU: GpuSignal<T, Tag> (шаблонный)
+    -> GpuFloatSignal, GpuComplexFloatSignal, GpuByteSignal
+  - CPU: CpuFloatSignal, CpuComplexSignal
+  - Placeholder: EmptyContainer
+end note
+
+@enduml
