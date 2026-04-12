@@ -90,7 +90,7 @@ bool Conveyor::run() {
                 ERROR << module->getMetaData().moduleName << "Con't use data tupe: " << data->getDataName() << std::endl;
                 return false;
             }
-            
+
             moduleStart = std::chrono::steady_clock::now();
             if(not module->run()){
                 ERROR << "Fail to run: " << module->getMetaData().moduleName << std::endl;
