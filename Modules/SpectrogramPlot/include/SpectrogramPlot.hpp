@@ -10,6 +10,31 @@
 #include <string>
 #include <vector>
 
+/// @brief Прототип CUDA функции рендеринга спектроскопии
+/// @param input Входные данные спектроскопии (rows x inputCols)
+/// @param outputBgr Выходное изображение (rows x cols, BGR)
+/// @param rows Количество строк
+/// @param cols Количество столбцов выходного изображения (= renderCols)
+/// @param colOffset Начальный столбец во входных данных
+/// @param inputCols Общее количество столбцов во входных данных
+/// @param minValue Минимальное значение dB для нормализации
+/// @param maxValue Максимальное значение dB для нормализации
+/// @param hasMaskBelowDb Флаг маскировки значений ниже порога
+/// @param maskBelowDb Порог маскировки в dB
+/// @param colorLut Таблица цветов (256 x 3 байта)
+bool renderSpectrogramImageCuda(
+    const float* input,
+    unsigned char* outputBgr,
+    size_t rows,
+    size_t cols,
+    size_t colOffset,
+    size_t inputCols,
+    float minValue,
+    float maxValue,
+    bool hasMaskBelowDb,
+    float maskBelowDb,
+    const unsigned char* colorLut);
+
 class SpectrogramPlot : public IModule {
 public:
     SpectrogramPlot();

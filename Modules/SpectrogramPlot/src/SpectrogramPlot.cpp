@@ -79,17 +79,6 @@ const std::array<cv::Vec3b, 256>& blueYellowLut()
 
 } // namespace
 
-bool renderSpectrogramImageCuda(
-    const float* input,
-    unsigned char* outputBgr,
-    size_t rows,
-    size_t cols,
-    float minValue,
-    float maxValue,
-    bool hasMaskBelowDb,
-    float maskBelowDb,
-    const unsigned char* colorLut);
-
 IModule* createModule() {
     return new SpectrogramPlot();
 }
@@ -164,6 +153,50 @@ bool SpectrogramPlot::run() {
         return false;
     }
 
+    // Вычисляем диапазон столбцов для заданной полосы частот
+    size_t colOffset = 0;
+    size_t renderCols = m_freqBins;
+
+    if (m_hasFreqRange) {
+        double fullFreqMin = 0.0;
+        double fullFreqMax = 0.0;
+        if (isRealSpectrum) {
+            fullFreqMin = 0.0;
+            fullFreqMax = m_sampleRate / 2.0;
+        } else if (m_centeredSpectrum) {
+            fullFreqMin = -static_cast<double>(m_sampleRate) / 2.0;
+            fullFreqMax = static_cast<double>(m_sampleRate) / 2.0;
+        } else {
+            fullFreqMin = 0.0;
+            fullFreqMax = static_cast<double>(m_sampleRate);
+        }
+
+        const double freqRange = fullFreqMax - fullFreqMin;
+        if (freqRange <= 0.0) {
+            ERROR << "SpectrogramPlot::run: invalid frequency range." << std::endl;
+            return false;
+        }
+
+        const double startFrac = (m_freqMin - fullFreqMin) / freqRange;
+        const double endFrac = (m_freqMax - fullFreqMin) / freqRange;
+
+        colOffset = static_cast<size_t>(std::max(0.0, std::min(1.0, startFrac)) * (m_freqBins - 1));
+        const size_t endCol = static_cast<size_t>(std::max(0.0, std::min(1.0, endFrac)) * (m_freqBins - 1));
+
+        if (endCol <= colOffset) {
+            ERROR << "SpectrogramPlot::run: freq range [" << m_freqMin << ", " << m_freqMax
+                  << "] is outside the spectrum range [" << fullFreqMin << ", " << fullFreqMax << "]." << std::endl;
+            return false;
+        }
+
+        renderCols = endCol - colOffset;
+    }
+
+    if (renderCols == 0) {
+        ERROR << "SpectrogramPlot::run: no columns to render in the specified freq range." << std::endl;
+        return false;
+    }
+
     float minValue = 0.0f;
     float maxValue = 0.0f;
     if (m_hasDbRange) {
@@ -221,7 +254,7 @@ bool SpectrogramPlot::run() {
         }
     }
 
-    const size_t imageBytes = rows * m_freqBins * 3;
+    const size_t imageBytes = rows * renderCols * 3;
     if (!m_gpuImageBuffer || m_gpuImageCapacity < imageBytes) {
         if (m_gpuImageBuffer) {
             cudaFree(m_gpuImageBuffer);
@@ -242,6 +275,8 @@ bool SpectrogramPlot::run() {
             m_data->getDeviceData(),
             m_gpuImageBuffer,
             rows,
+            renderCols,
+            colOffset,
             m_freqBins,
             minValue,
             maxValue,
@@ -252,7 +287,7 @@ bool SpectrogramPlot::run() {
         return false;
     }
 
-    cv::Mat image(static_cast<int>(rows), static_cast<int>(m_freqBins), CV_8UC3);
+    cv::Mat image(static_cast<int>(rows), static_cast<int>(renderCols), CV_8UC3);
     const auto imageCopyErr = cudaMemcpy(
         image.data,
         m_gpuImageBuffer,
@@ -268,7 +303,7 @@ bool SpectrogramPlot::run() {
     const int leftMargin = 60;
     const int rightMargin = 10;
     const int bottomMargin = 10;
-    const int canvasWidth = leftMargin + static_cast<int>(m_freqBins) + rightMargin;
+    const int canvasWidth = leftMargin + static_cast<int>(renderCols) + rightMargin;
     const int canvasHeight = topMargin + static_cast<int>(rows) + bottomMargin;
 
     cv::Mat canvas(canvasHeight, canvasWidth, CV_8UC3, cv::Scalar(250, 247, 242));
@@ -297,7 +332,7 @@ bool SpectrogramPlot::run() {
     const int freqTicks = 5;
     for (int t = 0; t <= freqTicks; ++t) {
         const double frac = static_cast<double>(t) / freqTicks;
-        const int x = leftMargin + static_cast<int>(std::round(frac * (m_freqBins - 1)));
+        const int x = leftMargin + static_cast<int>(std::round(frac * (renderCols - 1)));
         const double freq = freqMin + (freqMax - freqMin) * frac;
         const std::string label = std::to_string(static_cast<int>(std::round(freq)));
         cv::putText(canvas, label, cv::Point(x - 10, topMargin - 8), font, fontScale, color, thickness);

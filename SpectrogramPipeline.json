@@ -35,6 +35,8 @@
         {
           "name": "SpectrogramPlot",
           "params": {
+            "freq min": -12000.0,
+            "freq max":  12000.0,
             "sample rate": "$SAMPLE_RATE",
             "fft size": "$FFT_SIZE",
             "hop size": "$FFT_HOP_SIZE",

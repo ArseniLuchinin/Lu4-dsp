@@ -21,6 +21,8 @@ __global__ void renderSpectrogramKernel(
     unsigned char* outputBgr,
     size_t rows,
     size_t cols,
+    size_t colOffset,
+    size_t totalInputCols,
     float minValue,
     float maxValue,
     bool hasMaskBelowDb,
@@ -35,7 +37,14 @@ __global__ void renderSpectrogramKernel(
 
     const size_t y = gid / cols;
     const size_t x = gid - (y * cols);
-    const float raw = input[gid];
+    const size_t xIn = colOffset + x;
+
+    // Проверка границ
+    if (xIn >= totalInputCols) {
+        return;
+    }
+
+    const float raw = input[(y * totalInputCols) + xIn];
 
     const float range = fmaxf(maxValue - minValue, 1.0e-12f);
     const float normalized = clamp01((raw - minValue) / range);
@@ -68,6 +77,8 @@ bool renderSpectrogramImageCuda(
     unsigned char* outputBgr,
     size_t rows,
     size_t cols,
+    size_t colOffset,
+    size_t inputCols,
     float minValue,
     float maxValue,
     bool hasMaskBelowDb,
@@ -90,6 +101,8 @@ bool renderSpectrogramImageCuda(
         outputBgr,
         rows,
         cols,
+        colOffset,
+        inputCols,
         minValue,
         maxValue,
         hasMaskBelowDb,
