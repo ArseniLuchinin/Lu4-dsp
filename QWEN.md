@@ -74,6 +74,7 @@ Modules/                    — 19 модулей обработки
     include/<ModuleName>.hpp
     src/<ModuleName>.cpp
     CMakeLists.txt
+    README.md               — пользовательская документация модуля
     tests/                  — опциональные тесты модуля
 tests/                      — E2E/integration тесты
 utils/                      — Python скрипты для генерации сигналов
@@ -155,6 +156,7 @@ utils/                      — Python скрипты для генерации 
 | Локальные переменные | `camelCase` | `inputSize` |
 | Константы | `k` + `PascalCase` | `kQpskSps` |
 | CUDA ядра | `camelCase` + `Kernel` | `runDecimatorKernel()` |
+| Свободные функции (`.cpp`) | `camelCase` | `downloadGpuBytes()`, `readAllBytes()` |
 
 ### Includes (упорядоченные)
 ```cpp
@@ -170,24 +172,50 @@ utils/                      — Python скрипты для генерации 
 #include <vector>
 ```
 
-### Логирование (Boost.Log)
-```cpp
-ERROR << "ClassName::method failed: description." << std::endl;
-DEBUG << "message" << std::endl;
-```
+### Smart Pointers
+- **`std::shared_ptr`** — основной тип указателей для данных
+- `std::make_shared<T>()` для создания
+- `std::dynamic_pointer_cast<T>()` для downcasting `IData`
+- **Без `std::unique_ptr`**
+- Сырые указатели только для CUDA device memory
 
-### Тесты
-- **Фреймворк:** Google Test
-- **Стиль:** `TEST(TestSuiteName, TestName)` — без fixtures
-- **Именование:** `CamelCase_DescriptiveName_Scenario_ExpectedResult[_Red]`
-- **Ассерты:** `ASSERT_TRUE()`, `EXPECT_EQ()`, `ASSERT_NE()`, `ASSERT_FALSE()`
-- `GTEST_SKIP()` для пропусков (например, нет CUDA)
+### Error Handling
+- **Boolean returns**: `true` = успех, `false` = ошибка
+- **Guard checks** в начале методов с early return
+- **Логирование** через Boost.Log:
+  ```cpp
+  ERROR << "ClassName::method failed: description." << std::endl;
+  DEBUG << "message" << std::endl;
+  ```
+- **CUDA errors**: проверка каждого вызова на `cudaSuccess`, `cudaGetErrorString()`
+- **Без исключений** в коде модулей
 
-### Форматирование
+### Comments & Documentation
+- **Интерфейсные методы**: Doxygen-стиль на русском
+  ```cpp
+  /*!
+  * @brief init инициализирует модуль из json
+  * @return true если модуль успешно инициализирован
+  */
+  ```
+- **Реализация**: English, обычные `//` комментарии
+- **Краткие методы**: `/// @brief run запускает модуль`
+
+### Formatting
 - Отступ 4 пробела (без табуляции)
 - Фигурные скобки на одной строке для функций/контроля потока
 - `override` на всех виртуальных методах
 - `#ifndef`/`#define`/`#endif` header guards
+
+### Tests
+- **Фреймворк:** Google Test
+- **Стиль:** `TEST(TestSuiteName, TestName)` — без fixtures
+- **Именование:** `CamelCase_DescriptiveName_Scenario_ExpectedResult[_Red]`
+  - `MiniE2E_QpskChain_InputEqualsOutput_Red`
+  - `FileE2E_QpskRrc128_InputEqualsOutput`
+- **Ассерты:** `ASSERT_TRUE()`, `EXPECT_EQ()`, `ASSERT_NE()`, `ASSERT_FALSE()`
+- `GTEST_SKIP()` для пропусков (например, нет CUDA)
+- Тесты модулей: `Modules/<Name>/tests/`
 
 ---
 
@@ -198,6 +226,17 @@ DEBUG << "message" << std::endl;
 3. Экспортировать `extern "C" IModule* createModule()` factory-функцию
 4. Зарегистрировать модуль в `Modules/module.hpp`
 5. Добавить тесты в `Modules/<ModuleName>/tests/` (опционально)
+6. Создать `Modules/<ModuleName>/README.md` — описание для пользователя + таблица параметров
+
+## Documentation Rule
+
+Каждый модуль имеет `README.md` в своей директории — это пользовательская документация (что делает, параметры, алгоритм).
+
+**При изменении модуля обновлять его `README.md` в том же коммите:**
+- Добавление/удаление/переименование параметров
+- Изменение типов или правил валидации параметров
+- Изменение алгоритма или логики обработки
+- Изменение типов входных/выходных данных
 
 ---
 
@@ -208,6 +247,5 @@ DEBUG << "message" << std::endl;
 | `pipeline.json` | Конфигурация конвейеров обработки |
 | `variables.toml` | Глобальные переменные для подстановки |
 | `CMakePresets.json` | Пресеты сборки и тестирования |
-| `AGENTS.md` | Guidelines для coding agents |
 | `ARCHITECTURE.md` | Описание архитектуры приложения |
 | `main.cpp` | Точка входа + инициализация логирования |
