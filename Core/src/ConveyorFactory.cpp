@@ -93,7 +93,7 @@ bool ConveyorFactory::buildModule(
         const auto& params = paramsIt->value().as_object();
         for (const auto& kv : params) {
             const std::string paramName = std::string(kv.key());
-            module->setParam(paramName, jsonToAny(kv.value()));
+            module->fetchParam(paramName, jsonToAny(kv.value()));
         }
     }
 

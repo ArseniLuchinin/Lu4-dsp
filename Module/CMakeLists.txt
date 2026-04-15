@@ -10,6 +10,7 @@ add_library(${PROJECT_NAME} SHARED
     include/IModule.hpp
     include/Variables.hpp
     include/VirtualTransmitter.hpp
+    src/IModule.cpp
     src/IVirtualRX.cpp
     src/VirtualTransmitter.cpp
     src/Vаriables.cpp
