@@ -173,19 +173,18 @@ bool FIRFilter::setData(std::shared_ptr<IData> data){
 }
 
 void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
     if(paramName == "coefficients data tag"){
-        setTag(std::any_cast<std::string>(resolved));
+        setTag(std::any_cast<std::string>(value));
         return;
     }
 
     if (paramName == "filter order") {
-        m_M = std::any_cast<int32_t>(resolved);
+        m_M = std::any_cast<int32_t>(value);
         return;
     }
 
     if (paramName == "coefficients type") {
-        const auto modeStr = std::any_cast<std::string>(resolved);
+        const auto modeStr = std::any_cast<std::string>(value);
         if (modeStr == "auto") {
             m_coefficientsTypeMode = CoefficientsTypeMode::Auto;
             return;
@@ -205,12 +204,12 @@ void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
     }
 
     if (paramName == "log energy") {
-        m_logEnergy = std::any_cast<bool>(resolved);
+        m_logEnergy = std::any_cast<bool>(value);
         return;
     }
 
     if (paramName == "block size") {
-        (void)std::any_cast<int32_t>(resolved);
+        (void)std::any_cast<int32_t>(value);
         DEBUG << "FIRFilter::setParam: 'block size' is accepted for compatibility and ignored." << std::endl;
         return;
     }

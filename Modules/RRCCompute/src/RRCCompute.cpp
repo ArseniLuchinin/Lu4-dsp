@@ -212,11 +212,9 @@ bool RRCCompute::run() {
 }
 
 void RRCCompute::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
-
     if (paramName == "sample rate") {
         double parsed = 0.0;
-        if (!tryAnyToDouble(resolved, &parsed)) {
+        if (!tryAnyToDouble(value, &parsed)) {
             ERROR << "RRCCompute::setParam failed: invalid sample rate type." << std::endl;
             return;
         }
@@ -226,7 +224,7 @@ void RRCCompute::setParam(const std::string& paramName, const std::any& value) {
 
     if (paramName == "symbol rate") {
         double parsed = 0.0;
-        if (!tryAnyToDouble(resolved, &parsed)) {
+        if (!tryAnyToDouble(value, &parsed)) {
             ERROR << "RRCCompute::setParam failed: invalid symbol rate type." << std::endl;
             return;
         }
@@ -236,7 +234,7 @@ void RRCCompute::setParam(const std::string& paramName, const std::any& value) {
 
     if (paramName == "rolloff") {
         double parsed = 0.0;
-        if (!tryAnyToDouble(resolved, &parsed)) {
+        if (!tryAnyToDouble(value, &parsed)) {
             ERROR << "RRCCompute::setParam failed: invalid rolloff type." << std::endl;
             return;
         }
@@ -246,7 +244,7 @@ void RRCCompute::setParam(const std::string& paramName, const std::any& value) {
 
     if (paramName == "span symbols") {
         int parsed = 0;
-        if (!tryAnyToInt(resolved, &parsed)) {
+        if (!tryAnyToInt(value, &parsed)) {
             ERROR << "RRCCompute::setParam failed: invalid span symbols type." << std::endl;
             return;
         }
@@ -256,7 +254,7 @@ void RRCCompute::setParam(const std::string& paramName, const std::any& value) {
 
     if (paramName == "samples per symbol") {
         int parsed = 0;
-        if (!tryAnyToInt(resolved, &parsed)) {
+        if (!tryAnyToInt(value, &parsed)) {
             ERROR << "RRCCompute::setParam failed: invalid samples per symbol type." << std::endl;
             return;
         }
@@ -266,12 +264,12 @@ void RRCCompute::setParam(const std::string& paramName, const std::any& value) {
     }
 
     if (paramName == "normalize gain") {
-        m_normalizeGain = std::any_cast<bool>(resolved);
+        m_normalizeGain = std::any_cast<bool>(value);
         return;
     }
 
     if (paramName == "block size") {
-        (void)resolved;
+        (void)value;
         DEBUG << "RRCCompute::setParam: 'block size' is accepted for compatibility and ignored." << std::endl;
         return;
     }

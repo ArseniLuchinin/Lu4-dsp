@@ -371,74 +371,73 @@ bool SpectrogramPlot::run() {
 }
 
 void SpectrogramPlot::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
     if (paramName == "sample rate") {
-        m_sampleRate = static_cast<size_t>(std::any_cast<int32_t>(resolved));
+        m_sampleRate = static_cast<size_t>(std::any_cast<int32_t>(value));
         return;
     }
 
     if (paramName == "fft size") {
-        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(resolved));
+        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(value));
         return;
     }
 
     if (paramName == "window size") {
-        m_windowSize = static_cast<size_t>(std::any_cast<int32_t>(resolved));
+        m_windowSize = static_cast<size_t>(std::any_cast<int32_t>(value));
         return;
     }
 
     if (paramName == "hop size") {
-        m_hopSize = static_cast<size_t>(std::any_cast<int32_t>(resolved));
+        m_hopSize = static_cast<size_t>(std::any_cast<int32_t>(value));
         return;
     }
 
     if (paramName == "centered spectrum") {
-        m_centeredSpectrum = std::any_cast<bool>(resolved);
+        m_centeredSpectrum = std::any_cast<bool>(value);
         return;
     }
 
     if (paramName == "freq min") {
-        m_freqMin = std::any_cast<double>(resolved);
+        m_freqMin = std::any_cast<double>(value);
         m_hasFreqRange = true;
         return;
     }
 
     if (paramName == "freq max") {
-        m_freqMax = std::any_cast<double>(resolved);
+        m_freqMax = std::any_cast<double>(value);
         m_hasFreqRange = true;
         return;
     }
 
     if (paramName == "db min") {
-        m_dbMin = std::any_cast<double>(resolved);
+        m_dbMin = std::any_cast<double>(value);
         m_hasDbRange = true;
         return;
     }
 
     if (paramName == "db max") {
-        m_dbMax = std::any_cast<double>(resolved);
+        m_dbMax = std::any_cast<double>(value);
         m_hasDbRange = true;
         return;
     }
 
     if (paramName == "mask below db") {
-        m_maskBelowDb = std::any_cast<double>(resolved);
+        m_maskBelowDb = std::any_cast<double>(value);
         m_hasMaskBelowDb = true;
         return;
     }
 
     if (paramName == "show") {
-        m_isShow = std::any_cast<bool>(resolved);
+        m_isShow = std::any_cast<bool>(value);
         return;
     }
 
     if (paramName == "save path") {
-        m_savePath = std::any_cast<std::string>(resolved);
+        m_savePath = std::any_cast<std::string>(value);
         return;
     }
 
     if (paramName == "png compression") {
-        m_pngCompression = std::any_cast<int32_t>(resolved);
+        m_pngCompression = std::any_cast<int32_t>(value);
         return;
     }
 }

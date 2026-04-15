@@ -103,33 +103,32 @@ bool BandPassCompute::run() {
 }
 
 void BandPassCompute::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
     if (paramName == "sample rate") {
-        m_sampleRate = static_cast<double>(std::any_cast<int32_t>(resolved));
+        m_sampleRate = static_cast<double>(std::any_cast<int32_t>(value));
         DEBUG << "BandPassCompute sample rate set to: " << m_sampleRate << std::endl;
         return;
     }
 
     if (paramName == "filter order") {
-        m_filterOrder = std::any_cast<int32_t>(resolved);
+        m_filterOrder = std::any_cast<int32_t>(value);
         DEBUG << "BandPassCompute filter order set to: " << m_filterOrder << std::endl;
         return;
     }
 
     if (paramName == "block size") {
-        (void)std::any_cast<int32_t>(resolved);
+        (void)std::any_cast<int32_t>(value);
         DEBUG << "BandPassCompute::setParam: 'block size' is accepted for compatibility and ignored." << std::endl;
         return;
     }
 
     if (paramName == "low cutoff") {
-        m_lowCutoff = std::any_cast<double>(resolved);
+        m_lowCutoff = std::any_cast<double>(value);
         DEBUG << "BandPassCompute low cutoff set to: " << m_lowCutoff << std::endl;
         return;
     }
 
     if (paramName == "high cutoff") {
-        m_highCutoff = std::any_cast<double>(resolved);
+        m_highCutoff = std::any_cast<double>(value);
         DEBUG << "BandPassCompute high cutoff set to: " << m_highCutoff << std::endl;
         return;
     }

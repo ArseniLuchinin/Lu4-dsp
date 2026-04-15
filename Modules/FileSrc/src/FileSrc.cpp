@@ -62,16 +62,15 @@ bool FileSrc::run() {
 }
 
 void FileSrc::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
     if(paramName == "file name") {
-        m_fileName = std::any_cast<std::string>(resolved);
+        m_fileName = std::any_cast<std::string>(value);
         return;
     }
 
     if(paramName == "max size") {
-        if (const auto* v = std::any_cast<size_t>(&resolved)) {
+        if (const auto* v = std::any_cast<size_t>(&value)) {
             m_maxSize = *v;
-        } else if (const auto* v32 = std::any_cast<int32_t>(&resolved)) {
+        } else if (const auto* v32 = std::any_cast<int32_t>(&value)) {
             m_maxSize = static_cast<size_t>(*v32);
         } else {
             ERROR << "FileSrc::setParam: max size has invalid type." << std::endl;
@@ -80,7 +79,7 @@ void FileSrc::setParam(const std::string& paramName, const std::any& value) {
     }
 
     if(paramName == "data type") {
-        auto valueStr = std::any_cast<std::string>(resolved);
+        auto valueStr = std::any_cast<std::string>(value);
         if(valueStr == "float")
             m_type = DataType::Float;
         if(valueStr == "complex")

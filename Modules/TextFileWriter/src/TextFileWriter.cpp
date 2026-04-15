@@ -94,10 +94,8 @@ bool TextFileWriter::run() {
 }
 
 void TextFileWriter::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
-
     if (paramName == "file name") {
-        m_fileName = std::any_cast<std::string>(resolved);
+        m_fileName = std::any_cast<std::string>(value);
         return;
     }
 

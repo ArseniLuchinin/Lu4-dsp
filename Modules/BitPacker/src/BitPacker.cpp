@@ -219,21 +219,19 @@ bool BitPacker::run() {
 }
 
 void BitPacker::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
-
     if (paramName == "bit order") {
-        m_bitOrder = std::any_cast<std::string>(resolved);
+        m_bitOrder = std::any_cast<std::string>(value);
         return;
     }
 
     if (paramName == "flush tail") {
-        m_flushTail = std::any_cast<bool>(resolved);
+        m_flushTail = std::any_cast<bool>(value);
         return;
     }
 
     if (paramName == "discard leading bits") {
         size_t parsed = 0;
-        if (!anyToSize(resolved, &parsed)) {
+        if (!anyToSize(value, &parsed)) {
             ERROR << "BitPacker::setParam failed: invalid discard leading bits type/value." << std::endl;
             return;
         }

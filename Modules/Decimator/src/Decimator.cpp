@@ -229,11 +229,9 @@ bool Decimator::run() {
 }
 
 void Decimator::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
-
     if (paramName == "samples per symbol") {
         int parsed = 0;
-        if (!anyToInt(resolved, &parsed)) {
+        if (!anyToInt(value, &parsed)) {
             ERROR << "Decimator::setParam failed: invalid samples per symbol type." << std::endl;
             return;
         }
@@ -243,7 +241,7 @@ void Decimator::setParam(const std::string& paramName, const std::any& value) {
 
     if (paramName == "offset") {
         int parsed = 0;
-        if (!anyToInt(resolved, &parsed)) {
+        if (!anyToInt(value, &parsed)) {
             ERROR << "Decimator::setParam failed: invalid offset type." << std::endl;
             return;
         }

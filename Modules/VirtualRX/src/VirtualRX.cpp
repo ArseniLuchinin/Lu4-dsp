@@ -44,9 +44,8 @@ bool VirtualRX::run() {
 }
 
 void VirtualRX::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
     if (paramName == "tag") {
-        const auto tag = std::any_cast<std::string>(resolved);
+        const auto tag = std::any_cast<std::string>(value);
         if (!setTag(tag)) {
             ERROR << "VirtualRX::setParam failed: tag is empty." << std::endl;
             return;

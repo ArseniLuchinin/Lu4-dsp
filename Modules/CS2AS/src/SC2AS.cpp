@@ -88,14 +88,13 @@ bool CS2AS::run() {
 }
 
 void CS2AS::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
     if (paramName == "fft size") {
-        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(resolved));
+        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(value));
         return;
     }
 
     if (paramName == "normalize by fft size") {
-        m_normalizeByFftSize = std::any_cast<bool>(resolved);
+        m_normalizeByFftSize = std::any_cast<bool>(value);
         return;
     }
 }

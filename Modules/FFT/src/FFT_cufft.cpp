@@ -155,13 +155,12 @@ bool FFT::run() {
 }
 
 void FFT::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
     if(paramName == "fft size"){
-        m_fftSize = std::any_cast<int32_t>(resolved);
+        m_fftSize = std::any_cast<int32_t>(value);
     }
 
     if (paramName == "hop size") {
-        m_hopSize = std::any_cast<int32_t>(resolved);
+        m_hopSize = std::any_cast<int32_t>(value);
     }
 }
 

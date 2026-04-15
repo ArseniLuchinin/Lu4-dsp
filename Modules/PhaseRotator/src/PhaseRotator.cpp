@@ -127,10 +127,8 @@ bool PhaseRotator::run() {
 }
 
 void PhaseRotator::setParam(const std::string& paramName, const std::any& value) {
-    const std::any resolved = resolveParamValue(value);
-
     if (paramName == "phase tag") {
-        m_phaseTag = std::any_cast<std::string>(resolved);
+        m_phaseTag = std::any_cast<std::string>(value);
         return;
     }
 
