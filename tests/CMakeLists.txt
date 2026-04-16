@@ -108,3 +108,35 @@ gtest_discover_tests(virtual_tx_rx_tests
         LABELS "module"
         TIMEOUT 60
 )
+
+# ============================================================================
+# fetchParam resolution tests
+# ============================================================================
+
+add_executable(fetch_param_tests
+    fetch_param_tests.cpp
+)
+
+set_target_properties(fetch_param_tests PROPERTIES
+    FOLDER "Tests/Unit"
+)
+
+target_include_directories(fetch_param_tests
+    PRIVATE
+        ${MODULE_INCLUDE_DIRS}
+        ${DATA_CONTAINERS_INCLUDE_DIRS}
+)
+
+target_link_libraries(fetch_param_tests
+    PRIVATE
+        GTest::gtest_main
+        DataContainers
+        Module
+        CUDA::cudart
+)
+
+gtest_discover_tests(fetch_param_tests
+    PROPERTIES
+        LABELS "module"
+        TIMEOUT 30
+)

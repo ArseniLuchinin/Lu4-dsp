@@ -131,6 +131,18 @@ std::string getVariableToken(const std::any& value){
     return *token;
 }
 
+std::string getTagToken(const std::any& value){
+    const auto token = std::any_cast<std::string>(&value);
+    if (!token) {
+        return {};
+    }
+
+    if (token->empty() || token->at(0) != '@') {
+        return {};
+    }
+
+    return *token;
+}
 
 std::any getValueFromVariable(const std::string& token) {
     std::string key = token.substr(1);

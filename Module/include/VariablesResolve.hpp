@@ -6,6 +6,7 @@
 #include <string>
 
 std::string getVariableToken(const std::any& value);
+std::string getTagToken(const std::any& value);
 std::any getValueFromVariable(const std::string& token);
 
 #endif // VARIABLES_RESOLVE_H

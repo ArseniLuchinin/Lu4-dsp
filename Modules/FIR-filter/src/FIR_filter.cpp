@@ -30,20 +30,6 @@ bool FIRFilter::init()
         return false;
     }
 
-    if (!m_taps) {
-        std::shared_ptr<IData> rxBase = rxData();
-        if (!rxBase) {
-            ERROR << "FIRFilter::init failed: coefficients source is nullptr." << std::endl;
-            return false;
-        }
-
-        m_taps = std::dynamic_pointer_cast<IGpuSignalData>(rxBase);
-        if (!m_taps) {
-            ERROR << "FIRFilter::init failed: coefficients source must be GpuFloatSignal or GpuComplexFloatSignal." << std::endl;
-            return false;
-        }
-    }
-
     if (!m_taps->isValid()) {
         ERROR << "FIRFilter::init failed: coefficients data is invalid." << std::endl;
         return false;

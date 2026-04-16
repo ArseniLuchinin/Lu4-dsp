@@ -37,10 +37,10 @@
         {
           "name": "FIR-filter",
           "params": {
-            "coefficients data tag": "fir_rrc_coeff",
             "filter order": 1025,
             "coefficients type": "real",
-            "log energy": false
+            "log energy": false,
+            "taps": "@fir_rrc_coeff"
           }
         },
         {
