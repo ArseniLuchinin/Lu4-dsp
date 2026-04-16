@@ -118,31 +118,25 @@ bool Variables::error(const std::string& key,
     return false;
 }
 
-namespace {
-std::any resolveVariableToken(const std::string& token) {
-    if (token.empty() || token[0] != '$') {
+std::string getVariableToken(const std::any& value){
+    const auto token = std::any_cast<std::string>(&value);
+    if (!token) {
         return {};
     }
 
+    if (token->empty() || token->at(0) != '$') {
+        return {};
+    }
+
+    return *token;
+}
+
+
+std::any getValueFromVariable(const std::string& token) {
     std::string key = token.substr(1);
     if (key.empty()) {
         return {};
     }
 
     return Variables::instance().get(key);
-}
-} // namespace
-
-std::any resolveParamValue(const std::any& value) {
-    const auto* str = std::any_cast<std::string>(&value);
-    if (!str) {
-        return value;
-    }
-
-    std::any resolved = resolveVariableToken(*str);
-    if (resolved.has_value()) {
-        return resolved;
-    }
-
-    return value;
 }

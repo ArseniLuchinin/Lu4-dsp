@@ -5,8 +5,7 @@
 #include <any>
 #include <string>
 
-// If value is a string like "$name", tries to resolve it from Variables storage.
-// Returns the resolved value or the original value if not a variable.
-std::any resolveParamValue(const std::any& value);
+std::string getVariableToken(const std::any& value);
+std::any getValueFromVariable(const std::string& token);
 
 #endif // VARIABLES_RESOLVE_H
