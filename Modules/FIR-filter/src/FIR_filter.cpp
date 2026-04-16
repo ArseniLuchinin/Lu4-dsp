@@ -148,11 +148,6 @@ bool FIRFilter::setData(std::shared_ptr<IData> data){
 }
 
 void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
-    if(paramName == "coefficients data tag"){
-        setTag(std::any_cast<std::string>(value));
-        return;
-    }
-
     if (paramName == "filter order") {
         m_M = std::any_cast<int32_t>(value);
         return;

@@ -11,7 +11,7 @@
 
 #include <cuComplex.h>
 
-class FIRFilter : public IModule, public IVirtualRX { 
+class FIRFilter : public IModule { 
 public:
     FIRFilter();
     ~FIRFilter() override;
