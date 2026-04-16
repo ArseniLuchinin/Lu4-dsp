@@ -12,6 +12,7 @@
 #include <vector>
 
 class ConveyorOrchestrator {
+    using ConveyorConfig = boost::json::object;
 public:
     explicit ConveyorOrchestrator(const std::string& configPath);
 
@@ -35,6 +36,7 @@ private:
     ModuleFactory m_moduleFactory;
     ConveyorFactory m_conveyorFactory;
     std::vector<Runtime> m_runtimes;
+    std::vector<ConveyorConfig> m_conveyorConfigs;
 
     src::severity_channel_logger<
         logging::trivial::severity_level

@@ -56,27 +56,36 @@ bool ConveyorOrchestrator::run() {
         return false;
     }
 
-    // Start each conveyor in its own thread.
-    for (auto& runtime : m_runtimes) {
-        runtime.thread = std::thread([this, &runtime]() {
+    for (auto& config : m_conveyorConfigs) {
+        m_runtimes.emplace_back();
+    }
+
+    for (size_t i = 0; i < m_runtimes.size(); ++i) {
+        auto& runtime = m_runtimes[i];
+        const auto& config = m_conveyorConfigs[i];
+
+        runtime.thread = std::thread([this, &runtime, &config]() {
             const auto start = std::chrono::steady_clock::now();
-            std::string conveyorName;
-            if (runtime.conveyor) {
-                conveyorName = runtime.conveyor->getName();
+
+            try {
+                runtime.conveyor = m_conveyorFactory.createFromJsonObject(config);
+            } catch (const std::exception& ex) {
+                ERROR << "Failed to build conveyor: " << ex.what() << std::endl;
+                return;
             }
-            const auto resetConveyor = [&runtime]() {
-                runtime.conveyor.reset();
-            };
+
+            std::string conveyorName = runtime.conveyor->getName();
 
             if (!runtime.conveyor->init()) {
                 ERROR << "Error init conveyor: " << conveyorName << std::endl;
-                resetConveyor();
+                runtime.conveyor.reset();
                 return;
             }
+
             while (runtime.conveyor->run()) {
             }
 
-            resetConveyor();
+            runtime.conveyor.reset();
             const auto end = std::chrono::steady_clock::now();
             runtime.elapsedSeconds =
                 std::chrono::duration<double>(end - start).count();
@@ -141,14 +150,7 @@ bool ConveyorOrchestrator::buildConveyors() {
             return false;
         }
 
-        try {
-            Runtime runtime;
-            runtime.conveyor = m_conveyorFactory.createFromJsonObject(*obj);
-            m_runtimes.push_back(std::move(runtime));
-        } catch (const std::exception& ex) {
-            ERROR << "Failed to build conveyor: " << ex.what() << std::endl;
-            return false;
-        }
+        m_conveyorConfigs.push_back({*obj});
     }
 
     return true;
