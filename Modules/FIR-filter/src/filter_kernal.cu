@@ -206,7 +206,7 @@ bool computeSignalEnergy(
 
 bool FIRFilter::run(){
     const auto tRunStart = std::chrono::steady_clock::now();
-    if (!m_data || !m_gpuData || !m_workData) {
+    if (!m_data || !m_gpuData || !m_workData || !m_taps) {
         ERROR << "FIRFilter::run failed: input/work data is not set." << std::endl;
         return false;
     }
@@ -229,9 +229,15 @@ bool FIRFilter::run(){
     }
 
     // Fast-path for identity FIR (single real tap == 1): keep input unchanged.
-    if (m_tapType == TapType::Real && m_M == 1 && m_realTaps && m_realTaps->isValid()) {
+    if (m_taps->sampleType() == GpuSampleType::Float32 && m_M == 1 && m_taps->isValid()) {
         float tap = 0.0f;
-        const auto tapCopyErr = cudaMemcpy(&tap, m_realTaps->getDeviceData(), sizeof(float), cudaMemcpyDeviceToHost);
+        auto realTaps = castGpuSignal<GpuFloatSignal>(m_taps, "FIRFilter::run");
+        if (!realTaps) {
+            ERROR << "FIRFilter::run failed: unable to access single real tap value." << std::endl;
+            return false;
+        }
+
+        const auto tapCopyErr = cudaMemcpy(&tap, realTaps->getDeviceData(), sizeof(float), cudaMemcpyDeviceToHost);
         if (tapCopyErr != cudaSuccess) {
             ERROR << "FIRFilter::run failed: unable to read single tap value: "
                   << cudaGetErrorString(tapCopyErr) << std::endl;
@@ -271,13 +277,15 @@ bool FIRFilter::run(){
         return false;
     }
 
-    if (m_tapType == TapType::Real && m_gpuData->sampleType() == GpuSampleType::Float32) {
+    if (m_taps->sampleType() == GpuSampleType::Float32 &&
+        m_gpuData->sampleType() == GpuSampleType::Float32) {
         auto in = castGpuSignal<GpuFloatSignal>(m_gpuData, "FIRFilter::run");
         auto out = castGpuSignal<GpuFloatSignal>(m_workData, "FIRFilter::run");
         auto history = hasHistory
             ? castGpuSignal<GpuFloatSignal>(m_historyData, "FIRFilter::run")
             : nullptr;
-        if (!in || !out || (hasHistory && !history) || !m_realTaps) {
+        auto taps = castGpuSignal<GpuFloatSignal>(m_taps, "FIRFilter::run");
+        if (!in || !out || (hasHistory && !history) || !taps) {
             ERROR << "FIRFilter::run failed: invalid buffers for real input + real taps mode." << std::endl;
             return false;
         }
@@ -287,15 +295,17 @@ bool FIRFilter::run(){
             out->getDeviceData(),
             static_cast<int>(in->size()),
             hasHistory ? history->getDeviceData() : nullptr,
-            m_realTaps->getDeviceData(),
+            taps->getDeviceData(),
             m_M);
-    } else if (m_tapType == TapType::Real && m_gpuData->sampleType() == GpuSampleType::ComplexFloat32) {
+    } else if (m_taps->sampleType() == GpuSampleType::Float32 &&
+               m_gpuData->sampleType() == GpuSampleType::ComplexFloat32) {
         auto in = castGpuSignal<GpuComplexFloatSignal>(m_gpuData, "FIRFilter::run");
         auto out = castGpuSignal<GpuComplexFloatSignal>(m_workData, "FIRFilter::run");
         auto history = hasHistory
             ? castGpuSignal<GpuComplexFloatSignal>(m_historyData, "FIRFilter::run")
             : nullptr;
-        if (!in || !out || (hasHistory && !history) || !m_realTaps) {
+        auto taps = castGpuSignal<GpuFloatSignal>(m_taps, "FIRFilter::run");
+        if (!in || !out || (hasHistory && !history) || !taps) {
             ERROR << "FIRFilter::run failed: invalid buffers for complex input + real taps mode." << std::endl;
             return false;
         }
@@ -305,15 +315,17 @@ bool FIRFilter::run(){
             out->getDeviceData(),
             static_cast<int>(in->size()),
             hasHistory ? history->getDeviceData() : nullptr,
-            m_realTaps->getDeviceData(),
+            taps->getDeviceData(),
             m_M);
-    } else if (m_tapType == TapType::Complex && m_gpuData->sampleType() == GpuSampleType::ComplexFloat32) {
+    } else if (m_taps->sampleType() == GpuSampleType::ComplexFloat32 &&
+               m_gpuData->sampleType() == GpuSampleType::ComplexFloat32) {
         auto in = castGpuSignal<GpuComplexFloatSignal>(m_gpuData, "FIRFilter::run");
         auto out = castGpuSignal<GpuComplexFloatSignal>(m_workData, "FIRFilter::run");
         auto history = hasHistory
             ? castGpuSignal<GpuComplexFloatSignal>(m_historyData, "FIRFilter::run")
             : nullptr;
-        if (!in || !out || (hasHistory && !history) || !m_complexTaps) {
+        auto taps = castGpuSignal<GpuComplexFloatSignal>(m_taps, "FIRFilter::run");
+        if (!in || !out || (hasHistory && !history) || !taps) {
             ERROR << "FIRFilter::run failed: invalid buffers for complex input + complex taps mode." << std::endl;
             return false;
         }
@@ -323,7 +335,7 @@ bool FIRFilter::run(){
             out->getDeviceData(),
             static_cast<int>(in->size()),
             hasHistory ? history->getDeviceData() : nullptr,
-            m_complexTaps->getDeviceData(),
+            taps->getDeviceData(),
             m_M);
     } else {
         cudaEventDestroy(kernelStart);

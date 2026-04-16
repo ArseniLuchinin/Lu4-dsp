@@ -30,55 +30,41 @@ bool FIRFilter::init()
         return false;
     }
 
-    std::shared_ptr<IData> rxBase = rxData();
-    if (!rxBase) {
-        ERROR << "FIRFilter::init failed: coefficients source is nullptr." << std::endl;
+    if (!m_taps) {
+        std::shared_ptr<IData> rxBase = rxData();
+        if (!rxBase) {
+            ERROR << "FIRFilter::init failed: coefficients source is nullptr." << std::endl;
+            return false;
+        }
+
+        m_taps = std::dynamic_pointer_cast<IGpuSignalData>(rxBase);
+        if (!m_taps) {
+            ERROR << "FIRFilter::init failed: coefficients source must be GpuFloatSignal or GpuComplexFloatSignal." << std::endl;
+            return false;
+        }
+    }
+
+    if (!m_taps->isValid()) {
+        ERROR << "FIRFilter::init failed: coefficients data is invalid." << std::endl;
         return false;
     }
 
-    auto realTaps = std::dynamic_pointer_cast<GpuFloatSignal>(rxBase);
-    auto complexTaps = std::dynamic_pointer_cast<GpuComplexFloatSignal>(rxBase);
-
-    if (!realTaps && !complexTaps) {
-        ERROR << "FIRFilter::init failed: coefficients source must be GpuFloatSignal or GpuComplexFloatSignal." << std::endl;
-        return false;
-    }
-
-    if (realTaps && !realTaps->isValid()) {
-        ERROR << "FIRFilter::init failed: real coefficients data is invalid." << std::endl;
-        return false;
-    }
-    if (complexTaps && !complexTaps->isValid()) {
-        ERROR << "FIRFilter::init failed: complex coefficients data is invalid." << std::endl;
-        return false;
-    }
-
-    const size_t tapsSize = realTaps ? realTaps->size() : complexTaps->size();
+    const size_t tapsSize = m_taps->size();
     if (tapsSize != static_cast<size_t>(m_M)) {
         ERROR << "FIRFilter::init failed: coefficients size must match filter order." << std::endl;
         return false;
     }
 
-    if (realTaps) {
-        if (m_coefficientsTypeMode == CoefficientsTypeMode::Complex) {
-            ERROR << "FIRFilter::init failed: coefficients type mode is 'complex', but real taps were provided." << std::endl;
-            return false;
-        }
+    if (m_coefficientsTypeMode == CoefficientsTypeMode::Real &&
+        m_taps->sampleType() != GpuSampleType::Float32) {
+        ERROR << "FIRFilter::init failed: coefficients type mode is 'real', but complex taps were provided." << std::endl;
+        return false;
+    }
 
-        m_realTaps = realTaps;
-
-        m_complexTaps.reset();
-        m_tapType = TapType::Real;
-    } else {
-        if (m_coefficientsTypeMode == CoefficientsTypeMode::Real) {
-            ERROR << "FIRFilter::init failed: coefficients type mode is 'real', but complex taps were provided." << std::endl;
-            return false;
-        }
-
-        m_complexTaps = complexTaps;
-
-        m_realTaps.reset();
-        m_tapType = TapType::Complex;
+    if (m_coefficientsTypeMode == CoefficientsTypeMode::Complex &&
+        m_taps->sampleType() != GpuSampleType::ComplexFloat32) {
+        ERROR << "FIRFilter::init failed: coefficients type mode is 'complex', but real taps were provided." << std::endl;
+        return false;
     }
 
     m_data.reset();
@@ -88,7 +74,9 @@ bool FIRFilter::init()
     m_nextHistoryData.reset();
 
     INFO << "FIRFilter::init: taps initialized, order=" << m_M
-         << ", tap type=" << (m_tapType == TapType::Real ? "real" : "complex") << std::endl;
+         << ", tap type="
+         << (m_taps->sampleType() == GpuSampleType::Float32 ? "real" : "complex")
+         << std::endl;
     return true;
 }
 
@@ -98,7 +86,7 @@ bool FIRFilter::setData(std::shared_ptr<IData> data){
         return false;
     }
 
-    if (m_tapType == TapType::None) {
+    if (!m_taps) {
         ERROR << "FIRFilter::setData failed: taps are not initialized." << std::endl;
         return false;
     }
@@ -117,7 +105,8 @@ bool FIRFilter::setData(std::shared_ptr<IData> data){
     m_gpuData = validation.signal;
     m_data = data;
 
-    if (m_tapType == TapType::Complex && m_gpuData->sampleType() != GpuSampleType::ComplexFloat32) {
+    if (m_taps->sampleType() == GpuSampleType::ComplexFloat32 &&
+        m_gpuData->sampleType() != GpuSampleType::ComplexFloat32) {
         ERROR << "FIRFilter::setData failed: complex taps require complex input signal." << std::endl;
         return false;
     }
@@ -212,6 +201,20 @@ void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
         (void)std::any_cast<int32_t>(value);
         DEBUG << "FIRFilter::setParam: 'block size' is accepted for compatibility and ignored." << std::endl;
         return;
+    }
+
+    if (paramName == "taps") {
+        if (const auto* taps = std::any_cast<std::shared_ptr<IData>>(&value)) {
+            m_taps = std::dynamic_pointer_cast<IGpuSignalData>(*taps);
+            if (!m_taps) {
+                ERROR << "FIRFilter::setParam failed: 'taps' must reference a GPU signal." << std::endl;
+            }
+            return;
+        }
+
+        ERROR << "FIRFilter::setParam failed: unsupported type for 'taps'." << std::endl;
+        return;
+
     }
 
     ERROR << "can't handle param: " << paramName << std::endl;
