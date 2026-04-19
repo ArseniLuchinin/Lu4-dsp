@@ -18,6 +18,7 @@ TextFileWriter::TextFileWriter()
 
 TextFileWriter::~TextFileWriter() {
     if (m_out.is_open()) {
+        m_out.flush();
         m_out.close();
     }
 }
@@ -29,6 +30,10 @@ bool TextFileWriter::init() {
     }
 
     m_out.open(m_fileName, std::ios::binary | std::ios::trunc);
+    if (m_bufferSize > 0) {
+        std::vector<char> buffer(m_bufferSize);
+        m_out.rdbuf()->pubsetbuf(buffer.data(), m_bufferSize);
+    }
     if (!m_out.is_open()) {
         ERROR << "TextFileWriter::init failed: can't open file: " << m_fileName << std::endl;
         return false;
@@ -83,11 +88,6 @@ bool TextFileWriter::run() {
             ERROR << "TextFileWriter::run failed: write error for file: " << m_fileName << std::endl;
             return false;
         }
-        m_out.flush();
-        if (!m_out.good()) {
-            ERROR << "TextFileWriter::run failed: flush error for file: " << m_fileName << std::endl;
-            return false;
-        }
     }
 
     return true;
@@ -96,6 +96,11 @@ bool TextFileWriter::run() {
 void TextFileWriter::setParam(const std::string& paramName, const std::any& value) {
     if (paramName == "file name") {
         m_fileName = std::any_cast<std::string>(value);
+        return;
+    }
+
+    if (paramName == "buffer size") {
+        m_bufferSize = std::any_cast<size_t>(value);
         return;
     }
 

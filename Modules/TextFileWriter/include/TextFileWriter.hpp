@@ -23,6 +23,7 @@ public:
 
 private:
     std::string m_fileName;
+    size_t m_bufferSize = 8 * 1024 * 1024;
 
     std::ofstream m_out;
 
