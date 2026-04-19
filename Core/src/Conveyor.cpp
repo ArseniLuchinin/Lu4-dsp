@@ -98,9 +98,8 @@ bool Conveyor::run() {
             }
             moduleEnd = std::chrono::steady_clock::now();
             moduleMs = std::chrono::duration<double, std::milli>(moduleEnd - moduleStart).count();
-            INFO << "Module '" << module->getMetaData().moduleName << "' time: " << moduleMs << " ms" << std::endl;
+            INFO << "Module '" << module->getMetaData().moduleName << "'\ttime: " << moduleMs << " ms" << std::endl;
 
-            INFO << module->getMetaData().moduleName << " Success run" << std::endl;
             data = module->getData();
         }
     }

@@ -16,7 +16,6 @@ FileWriter::FileWriter()
 {}
 
 FileWriter::~FileWriter() {
-    DEBUG << "FileWriter::~FileWriter()" << std::endl;
     if (m_out.is_open()) {
         m_out.close();
     }
@@ -25,7 +24,6 @@ FileWriter::~FileWriter() {
         m_hostBuffer = nullptr;
         m_hostBufferSize = 0;
     }
-    DEBUG << "FileWriter::~FileWriter()" << std::endl;
 }
 
 bool FileWriter::init() {

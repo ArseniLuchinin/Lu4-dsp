@@ -180,7 +180,6 @@ void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
 
     if (paramName == "block size") {
         (void)std::any_cast<int32_t>(value);
-        DEBUG << "FIRFilter::setParam: 'block size' is accepted for compatibility and ignored." << std::endl;
         return;
     }
 
