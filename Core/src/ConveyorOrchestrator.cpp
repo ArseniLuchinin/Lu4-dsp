@@ -85,6 +85,7 @@ bool ConveyorOrchestrator::run() {
             while (runtime.conveyor->run()) {
             }
 
+            runtime.name = conveyorName;
             runtime.conveyor.reset();
             const auto end = std::chrono::steady_clock::now();
             runtime.elapsedSeconds =
@@ -99,9 +100,9 @@ bool ConveyorOrchestrator::run() {
     }
 
     for (const auto& runtime : m_runtimes) {
-        const std::string name = runtime.conveyor
-            ? runtime.conveyor->getName()
-            : std::string("<destroyed>");
+        const std::string name = runtime.name.empty()
+            ? std::string("<destroyed>")
+            : runtime.name;
         INFO << "Conveyor '" << name << "' total time: "
              << runtime.elapsedSeconds << " s" << std::endl;
     }

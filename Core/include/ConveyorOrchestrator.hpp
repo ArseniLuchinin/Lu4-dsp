@@ -24,6 +24,7 @@ private:
         std::shared_ptr<Conveyor> conveyor;
         std::thread thread;
         double elapsedSeconds = 0.0;
+        std::string name;
     };
 
     bool buildConveyors();
