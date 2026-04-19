@@ -20,6 +20,11 @@ FileWriter::~FileWriter() {
     if (m_out.is_open()) {
         m_out.close();
     }
+    if (m_hostBuffer != nullptr) {
+        cudaFreeHost(m_hostBuffer);
+        m_hostBuffer = nullptr;
+        m_hostBufferSize = 0;
+    }
     DEBUG << "FileWriter::~FileWriter()" << std::endl;
 }
 
@@ -42,6 +47,11 @@ bool FileWriter::init() {
             ERROR << "FileWriter::init failed: can't remove existing file: " << m_fileName << std::endl;
             return false;
         }
+    }
+
+    if (m_bufferSize > 0) {
+        m_streamBuf.resize(m_bufferSize);
+        m_out.rdbuf()->pubsetbuf(m_streamBuf.data(), m_bufferSize);
     }
 
     m_out.open(m_fileName, std::ios::binary | std::ios::trunc);
@@ -88,14 +98,23 @@ bool FileWriter::run() {
         return true;
     }
 
-    std::vector<uint8_t> hostBytes(byteSize);
-    if (hostBytes.empty()) {
-        ERROR << "FileWriter::run failed: failed to allocate host buffer." << std::endl;
-        return false;
+    if (m_hostBuffer == nullptr || m_hostBufferSize < byteSize) {
+        if (m_hostBuffer != nullptr) {
+            cudaFreeHost(m_hostBuffer);
+        }
+        cudaError_t allocErr = cudaMallocHost(reinterpret_cast<void**>(&m_hostBuffer), byteSize);
+        if (allocErr != cudaSuccess) {
+            ERROR << "FileWriter::run failed: cudaMallocHost failed: "
+                  << cudaGetErrorString(allocErr) << std::endl;
+            m_hostBuffer = nullptr;
+            m_hostBufferSize = 0;
+            return false;
+        }
+        m_hostBufferSize = byteSize;
     }
 
     cudaError_t copyErr = cudaMemcpy(
-        hostBytes.data(),
+        m_hostBuffer,
         m_inDataGpu->deviceDataRaw(),
         byteSize,
         cudaMemcpyDeviceToHost
@@ -106,15 +125,10 @@ bool FileWriter::run() {
         return false;
     }
 
-    m_out.write(reinterpret_cast<const char*>(hostBytes.data()), 
+    m_out.write(reinterpret_cast<const char*>(m_hostBuffer),
                 static_cast<std::streamsize>(byteSize));
     if (!m_out.good()) {
         ERROR << "FileWriter::run failed: write error for file: " << m_fileName << std::endl;
-        return false;
-    }
-    m_out.flush();
-    if (!m_out.good()) {
-        ERROR << "FileWriter::run failed: flush error for file: " << m_fileName << std::endl;
         return false;
     }
 
@@ -129,6 +143,11 @@ void FileWriter::setParam(const std::string& paramName, const std::any& value) {
 
     if (paramName == "overwrite") {
         m_overwrite = std::any_cast<bool>(value);
+        return;
+    }
+
+    if (paramName == "buffer size") {
+        m_bufferSize = std::any_cast<size_t>(value);
         return;
     }
 

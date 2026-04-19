@@ -8,6 +8,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <vector>
 
 class TextFileWriter : public IModule {
 public:
@@ -26,6 +27,7 @@ private:
     size_t m_bufferSize = 8 * 1024 * 1024;
 
     std::ofstream m_out;
+    std::vector<char> m_streamBuf;
 
     std::shared_ptr<GpuByteSignal> m_inData;
     std::shared_ptr<IData> m_outData;
