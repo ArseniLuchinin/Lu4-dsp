@@ -1,0 +1,89 @@
+@startuml
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+
+title Core — последовательность запуска конвейера
+
+actor "main()" as Main
+participant "ConveyorOrchestrator" as CO
+participant "ConveyorFactory" as CF
+participant "ModuleFactory" as MF
+participant "Conveyor" as CV
+participant "IModule" as MOD
+participant "Variables" as VAR
+participant "VirtualTransmitter" as VT
+
+group Инициализация системы
+    Main -> CO : ConveyorOrchestrator(configPath)
+    Main -> CO : load()
+    CO -> CO : читает pipeline.json
+end
+
+group Запуск конвейеров
+    Main -> CO : run()
+    CO -> VAR : load("variables.toml")
+    CO -> CO : buildConveyors()
+
+    loop Для каждого конфига
+        CO -> CO : создаёт std::thread
+        activate CO #LightBlue
+
+        CO -> CF : createFromJsonObject(config)
+        CF -> CV : make_shared<Conveyor>(name)
+
+        loop Для каждого модуля в JSON
+            CF -> MF : createModule(name)
+            MF -> MF : findModule(name) → Redis
+            MF -> MF : dlopen(path)
+            MF -> MF : dlsym("createModule")
+            MF -> MOD : createModule() → IModule*
+            MF --> CF : module
+
+            alt параметр содержит $VAR
+                CF -> MOD : fetchParam(name, value)
+                MOD -> VAR : get(varName)
+                MOD -> MOD : setParam(name, varValue)
+            else параметр содержит @tag
+                CF -> MOD : fetchParam(name, value)
+                MOD -> VT : registerRx(tag)
+                MOD -> VT : waitRxData(tag)
+                VT --> MOD : shared_ptr<IData>
+                MOD -> MOD : setParam(name, rxData)
+            else прямое значение
+                CF -> MOD : fetchParam(name, value)
+                MOD -> MOD : setParam(name, value)
+            end
+
+            CF -> CV : addModule(module)
+        end
+
+        CF --> CO : conveyor
+        CO -> CV : init()
+        loop Для каждого модуля
+            CV -> MOD : init()
+        end
+
+        loop while(conveyor->run())
+            CV -> MOD : run()
+            CV -> MOD : getData()
+            MOD --> CV : shared_ptr<IData>
+
+            alt data->size() == 0
+                CV --> CV : finished
+            else данные есть
+                loop Для каждого следующего модуля
+                    CV -> MOD : setData(data)
+                    CV -> MOD : run()
+                    CV -> MOD : getData()
+                    MOD --> CV : shared_ptr<IData>
+                end
+            end
+        end
+
+        deactivate CO
+    end
+
+    CO -> CO : join() всех потоков
+end
+
+@enduml

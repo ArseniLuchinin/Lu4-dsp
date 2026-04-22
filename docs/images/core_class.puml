@@ -1,0 +1,96 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam backgroundColor #FEFEFE
+skinparam class {
+    BackgroundColor<<interface>> #E3F2FD
+    BackgroundColor<<factory>> #FFF3E0
+    BackgroundColor<<orchestrator>> #FFEBEE
+}
+
+title Core — диаграмма классов
+
+class ConveyorOrchestrator <<orchestrator>> {
+    - m_configPath : string
+    - m_root : json::value
+    - m_loaded : bool
+    - m_moduleFactory : ModuleFactory
+    - m_conveyorFactory : ConveyorFactory
+    - m_conveyorConfigs : vector<ConveyorConfig>
+    - m_runtimes : vector<Runtime>
+    + load() : bool
+    + run() : bool
+    - loadVariables(root) : bool
+    - buildConveyors() : bool
+}
+
+class Runtime {
+    + conveyor : shared_ptr<Conveyor>
+    + thread : thread
+    + elapsedMs : long
+    + name : string
+}
+
+class ConveyorFactory <<factory>> {
+    - m_factory : ModuleFactory&
+    + createFromJsonObject(obj) : shared_ptr<Conveyor>
+    - buildModule(conveyor, obj) : bool
+    + {static} jsonToAny(value) : any
+}
+
+class Conveyor {
+    - m_conveyorName : string
+    - m_isInitialized : bool
+    - m_modules : vector<shared_ptr<IModule>>
+    + init() : bool
+    + run() : bool
+    + addModule(module) : void
+    + getName() : string
+}
+
+class ModuleFactory <<factory>> {
+    - m_redis : Redis
+    + findModule(name) : string
+    + createModule(name) : IModule*
+}
+
+class Variables {
+    - {static} s_instance : Variables*
+    + {static} instance() : Variables&
+    + load(filename) : bool
+    + get(key) : any
+}
+
+interface IModule <<interface>> {
+    + init() : bool
+    + run() : bool
+    + setParam(name, value) : void
+    + fetchParam(name, value) : void
+    + setData(data) : bool
+    + getData() : shared_ptr<IData>
+}
+
+interface IData <<interface>> {
+    + size() : size_t
+    + isValid() : bool
+    + copy() : shared_ptr<IData>
+}
+
+ConveyorOrchestrator --> ConveyorFactory : создаёт
+ConveyorOrchestrator --> ModuleFactory : передаёт в фабрику
+ConveyorOrchestrator --> Runtime : запускает потоки
+ConveyorOrchestrator ..> Variables : loadVariables()
+
+ConveyorFactory --> Conveyor : создаёт
+ConveyorFactory --> ModuleFactory : createModule()
+ConveyorFactory ..> IModule : fetchParam(), addModule()
+
+Conveyor --> IModule : m_modules[]
+Conveyor ..> IData : getData() → setData()
+
+legend right
+    Каждый Conveyor выполняется в отдельном std::thread.
+    Orchestrator делает join() всех потоков.
+endlegend
+
+@enduml

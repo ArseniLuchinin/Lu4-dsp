@@ -1,0 +1,94 @@
+@startuml
+skinparam backgroundColor #FEFEFE
+skinparam ArrowColor #333333
+
+title VirtualTransmitter — диаграмма активности
+
+|#E3F2FD|Конвейер A (TX)|
+|#E8F5E9|Конвейер B (RX1)|
+|#FFF3E0|Конвейер C (RX2)|
+|#F3E5F5|VirtualTransmitter|
+
+|Конвейер A (TX)|
+start
+:VirtualTX::setParam("tag", "coeffs");
+:VirtualTransmitter::registerTx("coeffs");
+|VirtualTransmitter|
+:Создать BroadcastSlot для "coeffs";
+:txRegistered = true;
+|Конвейер B (RX1)|
+:FIR-filter::fetchParam("taps", "@coeffs");
+:VirtualTransmitter::registerRx("coeffs");
+|VirtualTransmitter|
+:expectedReceivers++;
+|Конвейер C (RX2)|
+:OtherModule::fetchParam("data", "@coeffs");
+:VirtualTransmitter::registerRx("coeffs");
+|VirtualTransmitter|
+:expectedReceivers++;
+
+|Конвейер A (TX)|
+:VirtualTX::run();
+:VirtualTX::getData();
+:txData(data, "coeffs");
+|VirtualTransmitter|
+if (предыдущая итерация завершена?) then (да)
+    :slot.data = data;
+    :slot.deliveredCount = 0;
+    :slot.iteration++;
+    :notify_all();
+else (нет)
+    :wait(завершение предыдущей);
+    :slot.data = data;
+    :notify_all();
+endif
+
+|Конвейер B (RX1)|
+:waitRxData("coeffs");
+|VirtualTransmitter|
+if (данные пришли?) then (да)
+    :deliveredCount++;
+    if (deliveredCount < expectedReceivers?) then (да)
+        :return data->copy();
+    else (нет — последний)
+        :return std::move(slot.data);
+        :slot.data = nullptr;
+    endif
+else (таймаут 45с)
+    :exit(1);
+    detach
+endif
+|Конвейер B (RX1)|
+:получил shared_ptr<IData>;
+
+|Конвейер C (RX2)|
+:waitRxData("coeffs");
+|VirtualTransmitter|
+:deliveredCount++;
+if (deliveredCount < expectedReceivers?) then (да)
+    :return data->copy();
+else (нет — последний)
+    :return std::move(slot.data);
+    :slot.data = nullptr;
+endif
+|Конвейер C (RX2)|
+:получил shared_ptr<IData>;
+
+|VirtualTransmitter|
+if (все получили?) then (да)
+    :deliveredCount == expectedReceivers;
+    :slot освобождён для следующей итерации;
+else (нет)
+endif
+
+|Конвейер A (TX)|
+:следующая итерация txData();
+stop
+
+|Конвейер B (RX1)|
+stop
+
+|Конвейер C (RX2)|
+stop
+
+@enduml

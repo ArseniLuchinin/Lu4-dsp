@@ -1,0 +1,127 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam backgroundColor #FEFEFE
+skinparam class {
+    BackgroundColor<<interface>> #E3F2FD
+    BackgroundColor<<module>> #E8F5E9
+    BackgroundColor<<factory>> #FFF3E0
+    BackgroundColor<<data>> #F3E5F5
+}
+
+title Модули и интерфейс IModule — диаграмма классов
+
+interface IData <<interface>> {
+    + size() : size_t
+    + availableSize() : size_t
+    + reserve(size_t) : bool
+    + isValid() : bool
+    + copy() : shared_ptr<IData>
+    + getDataName() : string
+}
+
+interface IModule <<interface>> {
+    + init() : bool
+    + run() : bool
+    + setParam(name, value) : void
+    + fetchParam(name, value) : void
+    + setData(data) : bool
+    + getData() : shared_ptr<IData>
+    + getMetaData() : ModuleMetaData
+}
+
+class ModuleFactory <<factory>> {
+    - m_redis : Redis
+    - modulesPackage : unordered_map<string,string>
+    + findModule(name) : string
+    + createModule(name) : IModule*
+}
+
+class ModuleMetaData {
+    + name : string
+    + version : string
+    + author : string
+    + description : string
+}
+
+class Variables {
+    - {static} s_instance : Variables*
+    + {static} instance() : Variables&
+    + load(filename) : bool
+    + get(key) : any
+}
+
+class VirtualTransmitter {
+    - {static} s_broadcastSlots : map<string,BroadcastSlot>
+    - {static} s_mutex : mutex
+    + registerTx(tag) : bool
+    + registerRx(tag) : void
+    + txData(data, tag) : void
+    + waitRxData(tag) : shared_ptr<IData>
+    + rxData(tag) : shared_ptr<IData>
+}
+
+class FileSrc <<module>> {
+    - m_filePath : string
+    - m_blockSize : size_t
+    - m_data : shared_ptr<IData>
+    + setParam(name, value) : void
+    + init() : bool
+    + run() : bool
+}
+
+class FIRFilter <<module>> {
+    - m_taps : shared_ptr<IData>
+    - m_data : shared_ptr<IData>
+    + setParam(name, value) : void
+    + init() : bool
+    + run() : bool
+}
+
+class CarrierRecovery <<module>> {
+    - m_sampleRate : float
+    - m_data : shared_ptr<IData>
+    + setParam(name, value) : void
+    + init() : bool
+    + run() : bool
+}
+
+class QPSKDecision <<module>> {
+    - m_data : shared_ptr<IData>
+    + setParam(name, value) : void
+    + init() : bool
+    + run() : bool
+}
+
+class PluginAPI {
+    + {static} PLUGIN_API
+    + createModule() : IModule*
+}
+
+IModule --> IData : getData() / setData()
+IModule --> ModuleMetaData : getMetaData()
+IModule ..> Variables : fetchParam($VAR)
+IModule ..> VirtualTransmitter : fetchParam(@tag)
+
+ModuleFactory ..> IModule : createModule()
+ModuleFactory ..> PluginAPI : dlsym("createModule")
+
+FileSrc --|> IModule
+FIRFilter --|> IModule
+CarrierRecovery --|> IModule
+QPSKDecision --|> IModule
+
+FileSrc --> IData : читает файл → GpuSignal
+FIRFilter --> IData : фильтрует
+CarrierRecovery --> IData : восстанавляет несущую
+QPSKDecision --> IData : принимает решения
+
+legend right
+    Жизненный цикл модуля:
+    1. ModuleFactory::createModule(name)
+    2. fetchParam() для каждого параметра
+    3. init()
+    4. Цикл: run() → getData() → setData(next)
+endlegend
+
+@enduml
