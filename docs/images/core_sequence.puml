@@ -14,76 +14,90 @@ participant "Variables" as VAR
 participant "VirtualTransmitter" as VT
 
 group Инициализация системы
-    Main -> CO : ConveyorOrchestrator(configPath)
-    Main -> CO : load()
+    activate Main
+    Main -> CO ++ : ConveyorOrchestrator(configPath)
     CO -> CO : читает pipeline.json
+    Main -> CO : load()
+    deactivate CO
 end
 
 group Запуск конвейеров
-    Main -> CO : run()
-    CO -> VAR : load("variables.toml")
+    Main -> CO ++ : run()
+    CO -> VAR ++ : load("variables.toml")
+    return
     CO -> CO : buildConveyors()
 
     loop Для каждого конфига
         CO -> CO : создаёт std::thread
-        activate CO #LightBlue
 
-        CO -> CF : createFromJsonObject(config)
-        CF -> CV : make_shared<Conveyor>(name)
+        CO -> CF ++ : createFromJsonObject(config)
+        CF -> CV ++ : make_shared<Conveyor>(name)
 
         loop Для каждого модуля в JSON
-            CF -> MF : createModule(name)
+            CF -> MF ++ : createModule(name)
             MF -> MF : findModule(name) → Redis
             MF -> MF : dlopen(path)
             MF -> MF : dlsym("createModule")
-            MF -> MOD : createModule() → IModule*
-            MF --> CF : module
+            MF -> MOD ++ : createModule() → IModule*
+            return module
+            deactivate MF
 
             alt параметр содержит $VAR
-                CF -> MOD : fetchParam(name, value)
-                MOD -> VAR : get(varName)
+                CF -> MOD ++ : fetchParam(name, value)
+                MOD -> VAR ++ : get(varName)
+                return varValue
                 MOD -> MOD : setParam(name, varValue)
             else параметр содержит @tag
-                CF -> MOD : fetchParam(name, value)
-                MOD -> VT : registerRx(tag)
-                MOD -> VT : waitRxData(tag)
-                VT --> MOD : shared_ptr<IData>
+                CF -> MOD ++ : fetchParam(name, value)
+                MOD -> VT ++ : registerRx(tag)
+                return
+                MOD -> VT ++ : waitRxData(tag)
+                return shared_ptr<IData>
                 MOD -> MOD : setParam(name, rxData)
             else прямое значение
-                CF -> MOD : fetchParam(name, value)
+                CF -> MOD ++ : fetchParam(name, value)
                 MOD -> MOD : setParam(name, value)
             end
+            deactivate MOD
 
             CF -> CV : addModule(module)
         end
 
-        CF --> CO : conveyor
+        return conveyor
+        deactivate CF
+
         CO -> CV : init()
         loop Для каждого модуля
-            CV -> MOD : init()
+            CV -> MOD ++ : init()
+            return
         end
 
         loop while(conveyor->run())
-            CV -> MOD : run()
-            CV -> MOD : getData()
-            MOD --> CV : shared_ptr<IData>
+            CV -> MOD ++ : run()
+            return
+            CV -> MOD ++ : getData()
+            return shared_ptr<IData>
 
             alt data->size() == 0
                 CV --> CV : finished
             else данные есть
                 loop Для каждого следующего модуля
-                    CV -> MOD : setData(data)
-                    CV -> MOD : run()
-                    CV -> MOD : getData()
-                    MOD --> CV : shared_ptr<IData>
+                    CV -> MOD ++ : setData(data)
+                    return
+                    CV -> MOD ++ : run()
+                    return
+                    CV -> MOD ++ : getData()
+                    return shared_ptr<IData>
                 end
             end
         end
 
-        deactivate CO
+        deactivate CV
     end
 
     CO -> CO : join() всех потоков
+    deactivate CO
 end
 
+deactivate Main
 @enduml
