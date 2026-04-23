@@ -26,7 +26,7 @@ def index():
     })
 
 
-@app.route('/modules')
+@app.route('/modules/list')
 def get_modules():
     try:
         r = get_redis_client()

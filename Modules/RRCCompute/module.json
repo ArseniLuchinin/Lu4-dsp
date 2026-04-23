@@ -1,0 +1,45 @@
+{
+  "modules": [
+    {
+      "name": "RRCCompute",
+      "description": "Вычисляет коэффициенты Root Raised Cosine (RRC) фильтра. Используется для формирования импульсов в QPSK-системах. Коэффициенты передаются в FIR-filter.",
+      "fields": [
+        {
+          "name": "sample rate",
+          "type": "real",
+          "label": "Частота дискретизации, Гц"
+        },
+        {
+          "name": "symbol rate",
+          "type": "real",
+          "label": "Символьная скорость, символов/с"
+        },
+        {
+          "name": "rolloff",
+          "type": "real",
+          "label": "Коэффициент подъёма (0..1, по умолчанию 0.35)"
+        },
+        {
+          "name": "span symbols",
+          "type": "int",
+          "label": "Длительность фильтра в символах"
+        },
+        {
+          "name": "samples per symbol",
+          "type": "int",
+          "label": "Семплов на символ (опционально)"
+        },
+        {
+          "name": "normalize gain",
+          "type": "bool",
+          "label": "Нормализовать усиление (по умолчанию true)"
+        },
+        {
+          "name": "block size",
+          "type": "int",
+          "label": "Размер блока CUDA (принимается для совместимости и игнорируется)"
+        }
+      ]
+    }
+  ]
+}

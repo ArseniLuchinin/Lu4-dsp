@@ -1,0 +1,30 @@
+{
+  "modules": [
+    {
+      "name": "FIR-filter",
+      "description": "FIR-фильтрация сигнала. Коэффициенты получаются от другого модуля (BandPassCompute, RRCCompute) через VirtualTX/VirtualRX. Поддерживает вещественные и комплексные коэффициенты.",
+      "fields": [
+        {
+          "name": "filter order",
+          "type": "int",
+          "label": "Порядок фильтра (нечётное число)"
+        },
+        {
+          "name": "coefficients type",
+          "type": "enum",
+          "label": "Тип коэффициентов: auto, real, complex"
+        },
+        {
+          "name": "log energy",
+          "type": "bool",
+          "label": "Логировать энергию (по умолчанию true)"
+        },
+        {
+          "name": "block size",
+          "type": "int",
+          "label": "Размер блока CUDA (игнорируется)"
+        }
+      ]
+    }
+  ]
+}

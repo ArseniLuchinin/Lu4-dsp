@@ -1,0 +1,75 @@
+{
+  "modules": [
+    {
+      "name": "SpectrogramPlot",
+      "description": "Генерирует изображение спектрограммы из амплитудного спектра. Рендерит на GPU, сохраняет в PNG. Поддерживает настройку диапазона частот, dB-диапазона, цветовую карту.",
+      "fields": [
+        {
+          "name": "sample rate",
+          "type": "int",
+          "label": "Частота дискретизации, Гц"
+        },
+        {
+          "name": "fft size",
+          "type": "int",
+          "label": "Размер FFT"
+        },
+        {
+          "name": "window size",
+          "type": "int",
+          "label": "Размер окна (бинов на строку)"
+        },
+        {
+          "name": "hop size",
+          "type": "int",
+          "label": "Шаг между окнами"
+        },
+        {
+          "name": "centered spectrum",
+          "type": "bool",
+          "label": "Центрированный спектр"
+        },
+        {
+          "name": "freq min",
+          "type": "real",
+          "label": "Минимальная частота отображения, Гц"
+        },
+        {
+          "name": "freq max",
+          "type": "real",
+          "label": "Максимальная частота отображения, Гц"
+        },
+        {
+          "name": "db min",
+          "type": "real",
+          "label": "Минимум dB для нормализации"
+        },
+        {
+          "name": "db max",
+          "type": "real",
+          "label": "Максимум dB для нормализации"
+        },
+        {
+          "name": "mask below db",
+          "type": "real",
+          "label": "Порог маскировки значений"
+        },
+        {
+          "name": "show",
+          "type": "bool",
+          "label": "Показать изображение (превью)"
+        },
+        {
+          "name": "save path",
+          "type": "string",
+          "label": "Путь для сохранения PNG"
+        },
+        {
+          "name": "png compression",
+          "type": "int",
+          "label": "Сжатие PNG (0..9)"
+        }
+      ]
+    }
+  ]
+}

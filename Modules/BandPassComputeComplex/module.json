@@ -1,0 +1,40 @@
+{
+  "modules": [
+    {
+      "name": "BandPassComputeComplex",
+      "description": "Вычисляет коэффициенты полосового FIR-фильтра для комплексного сигнала. Поддерживает выбор боковой полосы: negative, positive или both. Для комплексных коэффициентов формирует фильтр с гетеродинированием.",
+      "fields": [
+        {
+          "name": "sample rate",
+          "type": "int",
+          "label": "Частота дискретизации, Гц"
+        },
+        {
+          "name": "filter order",
+          "type": "int",
+          "label": "Порядок фильтра (нечётное число)"
+        },
+        {
+          "name": "block size",
+          "type": "int",
+          "label": "Размер блока (принимается для совместимости и игнорируется)"
+        },
+        {
+          "name": "low cutoff",
+          "type": "real",
+          "label": "Нижняя граница полосы, Гц"
+        },
+        {
+          "name": "high cutoff",
+          "type": "real",
+          "label": "Верхняя граница полосы, Гц"
+        },
+        {
+          "name": "sideband",
+          "type": "enum",
+          "label": "Боковая полоса: negative, positive, both"
+        }
+      ]
+    }
+  ]
+}

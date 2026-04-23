@@ -1,0 +1,20 @@
+{
+  "modules": [
+    {
+      "name": "TextFileWriter",
+      "description": "Записывает байты с GPU в текстовый файл.",
+      "fields": [
+        {
+          "name": "file name",
+          "type": "string",
+          "label": "Путь к выходному файлу"
+        },
+        {
+          "name": "buffer size",
+          "type": "int",
+          "label": "Размер внутреннего буфера потока (байт)"
+        }
+      ]
+    }
+  ]
+}

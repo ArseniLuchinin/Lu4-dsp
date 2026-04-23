@@ -1,0 +1,35 @@
+{
+  "modules": [
+    {
+      "name": "BandPassCompute",
+      "description": "Вычисляет коэффициенты полосового FIR-фильтра для вещественного сигнала. Использует метод окон с окном Хэмминга. Коэффициенты генерируются один раз и передаются в FIR-filter через VirtualTX/VirtualRX.",
+      "fields": [
+        {
+          "name": "sample rate",
+          "type": "int",
+          "label": "Частота дискретизации, Гц"
+        },
+        {
+          "name": "filter order",
+          "type": "int",
+          "label": "Порядок фильтра (нечётное число)"
+        },
+        {
+          "name": "block size",
+          "type": "int",
+          "label": "Размер блока (принимается для совместимости и игнорируется)"
+        },
+        {
+          "name": "low cutoff",
+          "type": "real",
+          "label": "Нижняя граница полосы, Гц"
+        },
+        {
+          "name": "high cutoff",
+          "type": "real",
+          "label": "Верхняя граница полосы, Гц"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "modules": [
+    {
+      "name": "FileWriter",
+      "description": "Записывает данные из GPU в бинарный файл. Данные копируются с GPU на CPU через page-locked (pinned) host memory, хост-буфер выделяется один раз и переиспользуется между вызовами run().",
+      "fields": [
+        {
+          "name": "file name",
+          "type": "string",
+          "label": "Путь к выходному файлу"
+        },
+        {
+          "name": "overwrite",
+          "type": "bool",
+          "label": "Перезаписать файл, если существует (по умолчанию false)"
+        },
+        {
+          "name": "buffer size",
+          "type": "int",
+          "label": "Размер буфера std::ofstream в байтах (по умолчанию 8 МБ)"
+        }
+      ]
+    }
+  ]
+}

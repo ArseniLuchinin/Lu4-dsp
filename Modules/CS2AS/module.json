@@ -1,0 +1,20 @@
+{
+  "modules": [
+    {
+      "name": "CS2AS",
+      "description": "Преобразует комплексный спектр в амплитудный спектр (дБ). Формула: 10 * log10(|z|² * norm), где norm = 1/fftSize² при включённой нормализации.",
+      "fields": [
+        {
+          "name": "fft size",
+          "type": "int",
+          "label": "Размер FFT для нормализации"
+        },
+        {
+          "name": "normalize by fft size",
+          "type": "bool",
+          "label": "Включить нормализацию (по умолчанию true)"
+        }
+      ]
+    }
+  ]
+}

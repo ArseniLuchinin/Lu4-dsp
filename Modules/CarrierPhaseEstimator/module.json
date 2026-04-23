@@ -1,0 +1,15 @@
+{
+  "modules": [
+    {
+      "name": "CarrierPhaseEstimator",
+      "description": "Оценивает фазу несущей из комплексного сигнала. Суммирует все семплы (CUB reduce) и вычисляет фазу через atan2. Результат передаётся по тегу для PhaseRotator.",
+      "fields": [
+        {
+          "name": "phase tag",
+          "type": "string",
+          "label": "Тег для передачи фазы (по умолчанию qpsk_phase)"
+        }
+      ]
+    }
+  ]
+}

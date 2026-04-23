@@ -1,0 +1,15 @@
+{
+  "modules": [
+    {
+      "name": "PhaseRotator",
+      "description": "Фазовое вращение комплексного сигнала. Получает фазу от CarrierPhaseEstimator по тегу и вращает все семплы на exp(j * phase).",
+      "fields": [
+        {
+          "name": "phase tag",
+          "type": "string",
+          "label": "Тег для получения фазы (по умолчанию qpsk_phase)"
+        }
+      ]
+    }
+  ]
+}
