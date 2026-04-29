@@ -48,12 +48,10 @@ def get_modules():
     modules = []
     for key in keys:
         module_name = key[:-len('-module')]
-        module_path = r.get(key)
         module_json_path = os.path.join(MODULES_DIR, module_name, 'module.json')
         readme_path = os.path.join(MODULES_DIR, module_name, 'README.md')
         modules.append({
             'name': module_name,
-            'path': module_path,
             'hasModuleJson': os.path.isfile(module_json_path),
             'hasReadme': os.path.isfile(readme_path)
         })
@@ -88,7 +86,6 @@ def get_module_detail(name):
             'message': f'Module "{name}" not found in Redis'
         }), 404
 
-    module_path = r.get(module_key)
     module_json_path = os.path.join(MODULES_DIR, name, 'module.json')
     readme_path = os.path.join(MODULES_DIR, name, 'README.md')
 
@@ -117,7 +114,6 @@ def get_module_detail(name):
     return jsonify({
         'status': 'ok',
         'name': name,
-        'path': module_path,
         'moduleJson': module_json_data,
         'readme': readme_content
     })
