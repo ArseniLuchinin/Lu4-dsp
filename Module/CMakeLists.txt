@@ -8,10 +8,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(${PROJECT_NAME} SHARED
     include/IModule.hpp
+    include/ModuleMetaData.hpp
     include/Variables.hpp
     include/VirtualTransmitter.hpp
     src/IModule.cpp
     src/IVirtualRX.cpp
+    src/ModuleMetaData.cpp
     src/VirtualTransmitter.cpp
     src/Vаriables.cpp
 )
@@ -32,6 +34,7 @@ target_link_libraries(logger INTERFACE
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
+    Boost::json
     tomlplusplus::tomlplusplus
 )
 

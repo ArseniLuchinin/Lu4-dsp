@@ -3,6 +3,7 @@
 
 #include <Conveyor.hpp>
 #include <ModuleFactory.hpp>
+#include <ModuleMetaData.hpp>
 #include <logger.hpp>
 
 #include <boost/json.hpp>
@@ -29,6 +30,11 @@ private:
     );
 
     static std::any jsonToAny(const boost::json::value& value);
+    static std::any convertParamValue(
+        const boost::json::value& value,
+        const ModuleMethaDataReader& reader,
+        const std::string& paramName
+    );
 
     ModuleFactory& m_factory;
     src::severity_channel_logger<

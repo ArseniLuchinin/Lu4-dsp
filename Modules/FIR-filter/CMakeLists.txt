@@ -46,5 +46,5 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:-Wall -Wextra>
 )
 
-configure_file(module.json ${CMAKE_BINARY_DIR}/Modules/${PROJECT_NAME}/module.json COPYONLY)
-configure_file(README.md ${CMAKE_BINARY_DIR}/Modules/${PROJECT_NAME}/README.md COPYONLY)
+configure_file(module.json ${CMAKE_CURRENT_BINARY_DIR}/module.json COPYONLY)
+configure_file(README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md COPYONLY)

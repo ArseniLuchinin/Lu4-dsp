@@ -32,4 +32,5 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ${REDISPP_LIBRARIES}
     Boost::json
     logger
+    Module
 )
