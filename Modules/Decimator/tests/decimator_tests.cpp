@@ -54,8 +54,8 @@ TEST(DecimatorModuleTest, DecimatorKeepsPhaseAcrossBlocks)
     }
 
     Decimator module;
-    module.setParam("samples per symbol", int32_t(4));
-    module.setParam("offset", int32_t(1));
+    module.setParam("samples per symbol", int64_t(4));
+    module.setParam("offset", int64_t(1));
     ASSERT_TRUE(module.init());
 
     ASSERT_TRUE(module.setData(makeGpuComplex({

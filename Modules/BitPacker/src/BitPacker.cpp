@@ -45,24 +45,12 @@ bool anyToSize(const std::any& value, size_t* out)
         return false;
     }
 
-    if (value.type() == typeid(int32_t)) {
-        const auto v = std::any_cast<int32_t>(value);
-        if (v < 0) {
-            return false;
-        }
-        *out = static_cast<size_t>(v);
-        return true;
-    }
     if (value.type() == typeid(int64_t)) {
         const auto v = std::any_cast<int64_t>(value);
         if (v < 0) {
             return false;
         }
         *out = static_cast<size_t>(v);
-        return true;
-    }
-    if (value.type() == typeid(uint32_t)) {
-        *out = static_cast<size_t>(std::any_cast<uint32_t>(value));
         return true;
     }
     if (value.type() == typeid(uint64_t)) {

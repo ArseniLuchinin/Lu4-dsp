@@ -104,7 +104,7 @@ TEST(FetchParamTests, VariableTokenStillResolvedThroughVariables)
     module.fetchParam("order", std::string("$FETCH_PARAM_ORDER"));
 
     EXPECT_EQ(module.m_lastParamName, "order");
-    const auto parsedValue = std::any_cast<int32_t>(&module.m_lastValue);
+    const auto parsedValue = std::any_cast<int64_t>(&module.m_lastValue);
     ASSERT_NE(parsedValue, nullptr);
-    EXPECT_EQ(*parsedValue, static_cast<int32_t>(123));
+    EXPECT_EQ(*parsedValue, static_cast<int64_t>(123));
 }

@@ -16,11 +16,11 @@ namespace {
 std::unique_ptr<RRCCompute> makeDefaultConfigured()
 {
     auto module = std::make_unique<RRCCompute>();
-    module->setParam("sample rate", int32_t(1'000'000));
-    module->setParam("symbol rate", int32_t(250'000));
+    module->setParam("sample rate", int64_t(1'000'000));
+    module->setParam("symbol rate", int64_t(250'000));
     module->setParam("rolloff", 0.35);
-    module->setParam("span symbols", int32_t(8));
-    module->setParam("samples per symbol", int32_t(4));
+    module->setParam("span symbols", int64_t(8));
+    module->setParam("samples per symbol", int64_t(4));
     module->setParam("normalize gain", true);
     return module;
 }
@@ -171,11 +171,11 @@ TEST(RRCComputeTest, SingularPointsDoNotProduceNaNOrInf)
     }
 
     auto module = std::make_unique<RRCCompute>();
-    module->setParam("sample rate", int32_t(1'000'000));
-    module->setParam("symbol rate", int32_t(250'000));
+    module->setParam("sample rate", int64_t(1'000'000));
+    module->setParam("symbol rate", int64_t(250'000));
     module->setParam("rolloff", 0.5);
-    module->setParam("span symbols", int32_t(8));
-    module->setParam("samples per symbol", int32_t(4));
+    module->setParam("span symbols", int64_t(8));
+    module->setParam("samples per symbol", int64_t(4));
     module->setParam("normalize gain", false);
     ASSERT_TRUE(module->init());
 
@@ -211,14 +211,14 @@ TEST(RRCComputeTest, GetDataReturnsTapsOnlyOnceThenEmptyContainer)
 TEST(RRCComputeTest, FailsWhenSampleRateIsInvalid)
 {
     auto module = makeDefaultConfigured();
-    module->setParam("sample rate", int32_t(0));
+    module->setParam("sample rate", int64_t(0));
     EXPECT_FALSE(module->init());
 }
 
 TEST(RRCComputeTest, FailsWhenSymbolRateIsInvalid)
 {
     auto module = makeDefaultConfigured();
-    module->setParam("symbol rate", int32_t(0));
+    module->setParam("symbol rate", int64_t(0));
     EXPECT_FALSE(module->init());
 }
 
@@ -232,24 +232,24 @@ TEST(RRCComputeTest, FailsWhenRolloffIsOutOfRange)
 TEST(RRCComputeTest, FailsWhenSpanIsInvalid)
 {
     auto module = makeDefaultConfigured();
-    module->setParam("span symbols", int32_t(0));
+    module->setParam("span symbols", int64_t(0));
     EXPECT_FALSE(module->init());
 }
 
 TEST(RRCComputeTest, FailsWhenSamplesPerSymbolIsInvalid)
 {
     auto module = makeDefaultConfigured();
-    module->setParam("samples per symbol", int32_t(1));
+    module->setParam("samples per symbol", int64_t(1));
     EXPECT_FALSE(module->init());
 }
 
 TEST(RRCComputeTest, FailsForNonIntegerSampleToSymbolRateRatioWhenSpsNotSet)
 {
     auto module = std::make_unique<RRCCompute>();
-    module->setParam("sample rate", int32_t(1'000'000));
-    module->setParam("symbol rate", int32_t(300'000));
+    module->setParam("sample rate", int64_t(1'000'000));
+    module->setParam("symbol rate", int64_t(300'000));
     module->setParam("rolloff", 0.35);
-    module->setParam("span symbols", int32_t(8));
+    module->setParam("span symbols", int64_t(8));
     module->setParam("normalize gain", true);
     EXPECT_FALSE(module->init());
 }

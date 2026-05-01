@@ -70,8 +70,8 @@ void FileSrc::setParam(const std::string& paramName, const std::any& value) {
     if(paramName == "max size") {
         if (const auto* v = std::any_cast<size_t>(&value)) {
             m_maxSize = *v;
-        } else if (const auto* v32 = std::any_cast<int32_t>(&value)) {
-            m_maxSize = static_cast<size_t>(*v32);
+        } else if (const auto* v64 = std::any_cast<int64_t>(&value)) {
+            m_maxSize = static_cast<size_t>(*v64);
         } else {
             ERROR << "FileSrc::setParam: max size has invalid type." << std::endl;
         }

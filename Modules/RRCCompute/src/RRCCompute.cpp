@@ -26,16 +26,8 @@ bool tryAnyToDouble(const std::any& value, double* out)
         *out = static_cast<double>(std::any_cast<float>(value));
         return true;
     }
-    if (value.type() == typeid(int32_t)) {
-        *out = static_cast<double>(std::any_cast<int32_t>(value));
-        return true;
-    }
     if (value.type() == typeid(int64_t)) {
         *out = static_cast<double>(std::any_cast<int64_t>(value));
-        return true;
-    }
-    if (value.type() == typeid(uint32_t)) {
-        *out = static_cast<double>(std::any_cast<uint32_t>(value));
         return true;
     }
     if (value.type() == typeid(uint64_t)) {
@@ -51,16 +43,8 @@ bool tryAnyToInt(const std::any& value, int* out)
         return false;
     }
 
-    if (value.type() == typeid(int32_t)) {
-        *out = static_cast<int>(std::any_cast<int32_t>(value));
-        return true;
-    }
     if (value.type() == typeid(int64_t)) {
         *out = static_cast<int>(std::any_cast<int64_t>(value));
-        return true;
-    }
-    if (value.type() == typeid(uint32_t)) {
-        *out = static_cast<int>(std::any_cast<uint32_t>(value));
         return true;
     }
     if (value.type() == typeid(uint64_t)) {

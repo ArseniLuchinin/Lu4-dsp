@@ -202,9 +202,9 @@ bool CarrierRecovery::run() {
 
 void CarrierRecovery::setParam(const std::string& paramName, const std::any& value) {
     if (paramName == "order") {
-        if (value.type() == typeid(int32_t)) {
-            m_order = std::any_cast<int32_t>(value);
-        } else if (value.type() == typeid(int64_t)) {
+        if (value.type() == typeid(int64_t)) {
+            m_order = static_cast<int>(std::any_cast<int64_t>(value));
+        } else if (value.type() == typeid(int)) {
             m_order = static_cast<int>(std::any_cast<int64_t>(value));
         } else if (value.type() == typeid(int)) {
             m_order = std::any_cast<int>(value);

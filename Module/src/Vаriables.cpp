@@ -70,7 +70,7 @@ bool Variables::processValue(const std::string& key,
 
     // INT
     if (value.is_integer()) {
-        data_[key] = static_cast<int32_t>(
+        data_[key] = static_cast<int64_t>(
             value.as_integer()->get()
         );
         return true;

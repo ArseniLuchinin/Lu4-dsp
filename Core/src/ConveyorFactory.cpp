@@ -109,15 +109,7 @@ std::any ConveyorFactory::jsonToAny(const value& v) {
         return v.as_bool();
     }
     if (v.is_int64()) {
-        const auto val = v.as_int64();
-        return static_cast<int32_t>(val);
-    }
-    if (v.is_uint64()) {
-        const auto val = v.as_uint64();
-        if (val > static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
-            return static_cast<double>(val);
-        }
-        return static_cast<int32_t>(val);
+        return static_cast<int64_t>(v.as_int64());
     }
     if (v.is_double()) {
         return v.as_double();

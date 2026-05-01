@@ -104,19 +104,19 @@ bool BandPassCompute::run() {
 
 void BandPassCompute::setParam(const std::string& paramName, const std::any& value) {
     if (paramName == "sample rate") {
-        m_sampleRate = static_cast<double>(std::any_cast<int32_t>(value));
+        m_sampleRate = static_cast<double>(std::any_cast<int64_t>(value));
         DEBUG << "BandPassCompute sample rate set to: " << m_sampleRate << std::endl;
         return;
     }
 
     if (paramName == "filter order") {
-        m_filterOrder = std::any_cast<int32_t>(value);
+        m_filterOrder = std::any_cast<int64_t>(value);
         DEBUG << "BandPassCompute filter order set to: " << m_filterOrder << std::endl;
         return;
     }
 
     if (paramName == "block size") {
-        (void)std::any_cast<int32_t>(value);
+        (void)std::any_cast<int64_t>(value);
         DEBUG << "BandPassCompute::setParam: 'block size' is accepted for compatibility and ignored." << std::endl;
         return;
     }

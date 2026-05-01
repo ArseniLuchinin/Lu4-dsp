@@ -89,7 +89,7 @@ bool CS2AS::run() {
 
 void CS2AS::setParam(const std::string& paramName, const std::any& value) {
     if (paramName == "fft size") {
-        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_fftSize = static_cast<size_t>(std::any_cast<int64_t>(value));
         return;
     }
 

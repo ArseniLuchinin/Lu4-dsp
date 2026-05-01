@@ -121,7 +121,7 @@ TEST(CarrierRecoveryModuleTest, EstimatesPhaseCorrectly_QPSKOrder4)
     const auto input = makePhaseShiftedQpskSymbols(bytes, phi);
 
     CarrierRecovery module;
-    module.setParam("order", int32_t(4));
+    module.setParam("order", int64_t(4));
     ASSERT_TRUE(module.init());
     ASSERT_TRUE(module.setData(input));
     ASSERT_TRUE(module.run());
@@ -151,7 +151,7 @@ TEST(CarrierRecoveryModuleTest, EstimatesPhaseCorrectly_BPSKOrder2)
     const auto input = makePhaseShiftedBpskSymbols(bytes, phi);
 
     CarrierRecovery module;
-    module.setParam("order", int32_t(2));
+    module.setParam("order", int64_t(2));
     ASSERT_TRUE(module.init());
     ASSERT_TRUE(module.setData(input));
     ASSERT_TRUE(module.run());
@@ -176,7 +176,7 @@ TEST(CarrierRecoveryModuleTest, EmptyInputPassesThrough)
     }
 
     CarrierRecovery module;
-    module.setParam("order", int32_t(4));
+    module.setParam("order", int64_t(4));
     ASSERT_TRUE(module.init());
     ASSERT_TRUE(module.setData(makeGpuComplex({})));
     ASSERT_TRUE(module.run());
@@ -189,11 +189,11 @@ TEST(CarrierRecoveryModuleTest, EmptyInputPassesThrough)
 TEST(CarrierRecoveryModuleTest, InvalidOrder_Fails)
 {
     CarrierRecovery moduleZero;
-    moduleZero.setParam("order", int32_t(0));
+    moduleZero.setParam("order", int64_t(0));
     EXPECT_FALSE(moduleZero.init());
 
     CarrierRecovery moduleNegative;
-    moduleNegative.setParam("order", int32_t(-1));
+    moduleNegative.setParam("order", int64_t(-1));
     EXPECT_FALSE(moduleNegative.init());
 }
 
@@ -213,7 +213,7 @@ TEST(CarrierRecoveryModuleTest, PhaseWrapNearBoundary)
 
     for (const float phi : phases) {
         CarrierRecovery module;
-        module.setParam("order", int32_t(4));
+module.setParam("order", int64_t(4));
         ASSERT_TRUE(module.init());
         ASSERT_TRUE(module.setData(makePhaseShiftedQpskSymbols(bytes, phi)));
         ASSERT_TRUE(module.run());
@@ -258,7 +258,7 @@ TEST(CarrierRecoveryModuleTest, AmplitudeImbalanceStillRecovers)
     const auto scaled = makeGpuComplex(pairs);
 
     CarrierRecovery module;
-    module.setParam("order", int32_t(4));
+    module.setParam("order", int64_t(4));
     ASSERT_TRUE(module.init());
     ASSERT_TRUE(module.setData(scaled));
     ASSERT_TRUE(module.run());
@@ -289,7 +289,7 @@ TEST(CarrierRecoveryModuleTest, StatelessAcrossBlocks)
     const std::vector<uint8_t> bytes2 = {'B', 'l', 'o', 'c', 'k', '2'};
 
     CarrierRecovery module;
-    module.setParam("order", int32_t(4));
+    module.setParam("order", int64_t(4));
     ASSERT_TRUE(module.init());
 
     ASSERT_TRUE(module.setData(makePhaseShiftedQpskSymbols(bytes1, phi1)));

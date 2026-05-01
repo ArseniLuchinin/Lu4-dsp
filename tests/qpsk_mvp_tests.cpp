@@ -182,7 +182,7 @@ TEST(QpskMvpTest, MiniE2E_QpskChain_InputEqualsOutput_Red)
     };
 
     CarrierRecovery recovery;
-    recovery.setParam("order", int32_t(4));
+    recovery.setParam("order", int64_t(4));
     ASSERT_TRUE(recovery.init());
 
     QPSKDecision decision;
@@ -222,12 +222,12 @@ TEST(QpskMvpTest, DemodMiniE2E_WithDecimatorAndKnownOffset)
     const auto oversampled = oversampleWithOffset(symbols, sps, offset);
 
     Decimator decimator;
-    decimator.setParam("samples per symbol", int32_t(sps));
-    decimator.setParam("offset", int32_t(offset));
+    decimator.setParam("samples per symbol", int64_t(sps));
+    decimator.setParam("offset", int64_t(offset));
     ASSERT_TRUE(decimator.init());
 
     CarrierRecovery recovery;
-    recovery.setParam("order", int32_t(4));
+    recovery.setParam("order", int64_t(4));
     ASSERT_TRUE(recovery.init());
 
     QPSKDecision decision;
@@ -297,23 +297,23 @@ TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
     FileSrc fileSrc;
     fileSrc.setParam("file name", signalPath.string());
     fileSrc.setParam("data type", std::string("complex"));
-    fileSrc.setParam("max size", int32_t(32 * 1024 * 1024));
+    fileSrc.setParam("max size", int64_t(32 * 1024 * 1024));
     ASSERT_TRUE(fileSrc.init());
 
     FIRFilter fir;
     fir.setParam("coefficients data tag", std::string("fir_rrc_coeff_file_e2e"));
-    fir.setParam("filter order", int32_t(1));
+    fir.setParam("filter order", int64_t(1));
     fir.setParam("coefficients type", std::string("real"));
     fir.setParam("log energy", false);
     ASSERT_TRUE(fir.init());
 
     Decimator decimator;
-    decimator.setParam("samples per symbol", int32_t(kQpskSps));
-    decimator.setParam("offset", int32_t(0));
+    decimator.setParam("samples per symbol", int64_t(kQpskSps));
+    decimator.setParam("offset", int64_t(0));
     ASSERT_TRUE(decimator.init());
 
     CarrierRecovery recovery;
-    recovery.setParam("order", int32_t(4));
+    recovery.setParam("order", int64_t(4));
     ASSERT_TRUE(recovery.init());
 
     QPSKDecision decision;
@@ -396,11 +396,11 @@ TEST(QpskMvpTest, FileE2E_QpskRrc128_InputEqualsOutput)
     ASSERT_FALSE(messageBytes.empty());
 
     RRCCompute rrc;
-    rrc.setParam("sample rate", int32_t(kSampleRate));
-    rrc.setParam("symbol rate", int32_t(kQpskSymbolRate));
+    rrc.setParam("sample rate", int64_t(kSampleRate));
+    rrc.setParam("symbol rate", int64_t(kQpskSymbolRate));
     rrc.setParam("rolloff", 0.35f);
-    rrc.setParam("span symbols", int32_t(8));
-    rrc.setParam("samples per symbol", int32_t(kQpskSps));
+    rrc.setParam("span symbols", int64_t(8));
+    rrc.setParam("samples per symbol", int64_t(kQpskSps));
     rrc.setParam("normalize gain", true);
     ASSERT_TRUE(rrc.init());
     ASSERT_TRUE(rrc.run());
@@ -413,23 +413,23 @@ TEST(QpskMvpTest, FileE2E_QpskRrc128_InputEqualsOutput)
     FileSrc fileSrc;
     fileSrc.setParam("file name", signalPath.string());
     fileSrc.setParam("data type", std::string("complex"));
-    fileSrc.setParam("max size", int32_t(1024 * 1024 * 1024));
+    fileSrc.setParam("max size", int64_t(1024 * 1024 * 1024));
     ASSERT_TRUE(fileSrc.init());
 
     FIRFilter fir;
     fir.setParam("coefficients data tag", std::string("fir_rrc_coeff_file_e2e_rrc"));
-    fir.setParam("filter order", int32_t((8 * kQpskSps) + 1));
+    fir.setParam("filter order", int64_t((8 * kQpskSps) + 1));
     fir.setParam("coefficients type", std::string("real"));
     fir.setParam("log energy", false);
     ASSERT_TRUE(fir.init());
 
     Decimator decimator;
-    decimator.setParam("samples per symbol", int32_t(kQpskSps));
-    decimator.setParam("offset", int32_t(0));
+    decimator.setParam("samples per symbol", int64_t(kQpskSps));
+    decimator.setParam("offset", int64_t(0));
     ASSERT_TRUE(decimator.init());
 
     CarrierRecovery recovery;
-    recovery.setParam("order", int32_t(4));
+    recovery.setParam("order", int64_t(4));
     ASSERT_TRUE(recovery.init());
 
     QPSKDecision decision;
@@ -438,7 +438,7 @@ TEST(QpskMvpTest, FileE2E_QpskRrc128_InputEqualsOutput)
     BitPacker packer;
     packer.setParam("bit order", std::string("msb-first"));
     packer.setParam("flush tail", false);
-    packer.setParam("discard leading bits", int32_t(16));
+    packer.setParam("discard leading bits", int64_t(16));
     ASSERT_TRUE(packer.init());
 
     std::vector<uint8_t> decodedBytes;

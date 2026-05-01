@@ -121,12 +121,12 @@ bool FFT_Shift::run() {
 
 void FFT_Shift::setParam(const std::string& paramName, const std::any& value) {
     if (paramName == "fft size") {
-        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_fftSize = static_cast<size_t>(std::any_cast<int64_t>(value));
         return;
     }
 
     if (paramName == "window size") {
-        m_windowSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_windowSize = static_cast<size_t>(std::any_cast<int64_t>(value));
         return;
     }
 }

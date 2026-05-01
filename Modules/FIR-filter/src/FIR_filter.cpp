@@ -149,7 +149,7 @@ bool FIRFilter::setData(std::shared_ptr<IData> data){
 
 void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
     if (paramName == "filter order") {
-        m_M = std::any_cast<int32_t>(value);
+        m_M = std::any_cast<int64_t>(value);
         return;
     }
 
@@ -179,7 +179,7 @@ void FIRFilter::setParam(const std::string& paramName, const std::any& value) {
     }
 
     if (paramName == "block size") {
-        (void)std::any_cast<int32_t>(value);
+        (void)std::any_cast<int64_t>(value);
         return;
     }
 

@@ -156,11 +156,11 @@ bool FFT::run() {
 
 void FFT::setParam(const std::string& paramName, const std::any& value) {
     if(paramName == "fft size"){
-        m_fftSize = std::any_cast<int32_t>(value);
+        m_fftSize = std::any_cast<int64_t>(value);
     }
 
     if (paramName == "hop size") {
-        m_hopSize = std::any_cast<int32_t>(value);
+        m_hopSize = std::any_cast<int64_t>(value);
     }
 }
 

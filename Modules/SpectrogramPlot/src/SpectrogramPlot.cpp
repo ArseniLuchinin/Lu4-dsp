@@ -102,7 +102,7 @@ bool SpectrogramPlot::init() {
     return true;
 }
 
-int32_t i = 0;
+int64_t i = 0;
 bool SpectrogramPlot::run() {
     if (!m_data || !m_data->isValid()) {
         ERROR << "SpectrogramPlot::run: input data is null or invalid." << std::endl;
@@ -372,22 +372,22 @@ bool SpectrogramPlot::run() {
 
 void SpectrogramPlot::setParam(const std::string& paramName, const std::any& value) {
     if (paramName == "sample rate") {
-        m_sampleRate = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_sampleRate = static_cast<size_t>(std::any_cast<int64_t>(value));
         return;
     }
 
     if (paramName == "fft size") {
-        m_fftSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_fftSize = static_cast<size_t>(std::any_cast<int64_t>(value));
         return;
     }
 
     if (paramName == "window size") {
-        m_windowSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_windowSize = static_cast<size_t>(std::any_cast<int64_t>(value));
         return;
     }
 
     if (paramName == "hop size") {
-        m_hopSize = static_cast<size_t>(std::any_cast<int32_t>(value));
+        m_hopSize = static_cast<size_t>(std::any_cast<int64_t>(value));
         return;
     }
 
@@ -437,7 +437,7 @@ void SpectrogramPlot::setParam(const std::string& paramName, const std::any& val
     }
 
     if (paramName == "png compression") {
-        m_pngCompression = std::any_cast<int32_t>(value);
+        m_pngCompression = std::any_cast<int64_t>(value);
         return;
     }
 }
