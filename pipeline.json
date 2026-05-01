@@ -44,13 +44,6 @@
           }
         },
         {
-          "name": "FileWriter",
-          "params": {
-            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_filtred_signal.bin",
-            "overwrite": true
-          }
-        },
-        {
           "name": "Decimator",
           "params": {
             "samples per symbol": "$QPSK_SPS",

@@ -7,7 +7,7 @@
         {
           "name": "FileSrc",
           "params": {
-            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_signal.bin",
+            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/noised_amc_signal.bin",
             "data type": "complex",
             "max size": "$MAX_SIZE"
           }
@@ -35,15 +35,13 @@
         {
           "name": "SpectrogramPlot",
           "params": {
-            "freq min": -12000.0,
-            "freq max":  12000.0,
             "sample rate": "$SAMPLE_RATE",
             "fft size": "$FFT_SIZE",
             "hop size": "$FFT_HOP_SIZE",
             "centered spectrum": true,
             "db min": -60.0,
-            "db max": 10.0,
-            "mask below db": -80.0,
+            "db max": 0.0,
+            "mask below db": -20.0,
             "show": false,
             "save path": "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogram",
             "png compression": 1
