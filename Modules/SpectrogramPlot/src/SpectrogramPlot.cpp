@@ -84,7 +84,7 @@ IModule* createModule() {
 }
 
 SpectrogramPlot::SpectrogramPlot()
-    : IModule({"SpectrogramPlot", "SpectrogramPlot-module.so", "SpectrogramPlot.json"}) {}
+    : IModule({"SpectrogramPlot", "libSpectrogramPlot-module.so", "module.json"}) {}
 
 SpectrogramPlot::~SpectrogramPlot() {
     if (m_gpuImageBuffer) {

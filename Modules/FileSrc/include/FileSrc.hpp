@@ -17,7 +17,7 @@ enum DataType{
 class FileSrc : public IModule {
 public:
 
-    FileSrc() : IModule({"FileSrc",  "FileSrc", "FileSrc"}) {};
+    FileSrc() : IModule({"FileSrc", "libFileSrc-module.so", "module.json"}) {};
     ~FileSrc();
 
     /// @brief Выделяет память для данных

@@ -31,7 +31,7 @@ IModule* createModule() {
 }
 
 BandPassComputeComplex::BandPassComputeComplex()
-    : IModule({"BandPassComputeComplex", "", ""})
+    : IModule({"BandPassComputeComplex", "libBandPassComputeComplex-module.so", "module.json"})
 {}
 
 BandPassComputeComplex::~BandPassComputeComplex() = default;

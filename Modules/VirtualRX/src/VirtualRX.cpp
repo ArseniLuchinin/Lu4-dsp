@@ -8,7 +8,7 @@ IModule* createModule() {
 }
 
 VirtualRX::VirtualRX()
-    : IModule({"VirtualRX", "VirtualRX.so", "VirtualRX.json"})
+    : IModule({"VirtualRX", "libVirtualRX-module.so", "module.json"})
     , IVirtualRX()
 {}
 

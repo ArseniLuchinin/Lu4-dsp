@@ -93,7 +93,7 @@ IModule* createModule() {
 }
 
 RRCCompute::RRCCompute()
-    : IModule({"RRCCompute", "", ""})
+    : IModule({"RRCCompute", "libRRCCompute-module.so", "module.json"})
 {}
 
 RRCCompute::~RRCCompute() = default;

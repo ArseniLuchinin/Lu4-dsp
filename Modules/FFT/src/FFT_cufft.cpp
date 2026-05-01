@@ -38,7 +38,7 @@ IModule* createModule() {
     return new FFT();
 }
 
-FFT::FFT() : IModule({"FFT", "FFT-module.so", "FFT.json"}) {}
+FFT::FFT() : IModule({"FFT", "libFFT-module.so", "module.json"}) {}
 
 FFT::~FFT() {
     if (m_plan != 0) {

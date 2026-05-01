@@ -13,7 +13,7 @@ IModule* createModule() {
 }
 
 TextFileWriter::TextFileWriter()
-    : IModule({"TextFileWriter", "", ""})
+    : IModule({"TextFileWriter", "libTextFileWriter-module.so", "module.json"})
 {}
 
 TextFileWriter::~TextFileWriter() {

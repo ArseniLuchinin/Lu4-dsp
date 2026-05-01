@@ -12,7 +12,7 @@ IModule* createModule() {
 }
 
 FileWriter::FileWriter()
-    : IModule({"FileWriter", "", ""})
+    : IModule({"FileWriter", "libFileWriter-module.so", "module.json"})
 {}
 
 FileWriter::~FileWriter() {

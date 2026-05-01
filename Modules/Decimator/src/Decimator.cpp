@@ -85,7 +85,7 @@ IModule* createModule() {
 }
 
 Decimator::Decimator()
-    : IModule({"Decimator", "", ""})
+    : IModule({"Decimator", "libDecimator-module.so", "module.json"})
 {}
 
 Decimator::~Decimator() = default;

@@ -14,7 +14,7 @@ IModule* createModule() {
 }
 
 
-SumReduce::SumReduce() : IModule({"SumReduce", "FileSrc.so", "FileSrc.json"}) {}
+SumReduce::SumReduce() : IModule({"SumReduce", "libSumReduce-module.so", "module.json"}) {}
 
 // Вызывается после заполнения значений
 bool SumReduce::init() {

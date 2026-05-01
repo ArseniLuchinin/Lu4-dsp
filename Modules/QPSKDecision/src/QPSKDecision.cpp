@@ -11,7 +11,7 @@ IModule* createModule() {
 }
 
 QPSKDecision::QPSKDecision()
-    : IModule({"QPSKDecision", "", ""})
+    : IModule({"QPSKDecision", "libQPSKDecision-module.so", "module.json"})
 {}
 
 QPSKDecision::~QPSKDecision() = default;

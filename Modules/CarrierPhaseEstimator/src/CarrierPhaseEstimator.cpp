@@ -24,7 +24,7 @@ IModule* createModule() {
 }
 
 CarrierPhaseEstimator::CarrierPhaseEstimator()
-    : IModule({"CarrierPhaseEstimator", "", ""})
+    : IModule({"CarrierPhaseEstimator", "libCarrierPhaseEstimator-module.so", "module.json"})
 {}
 
 CarrierPhaseEstimator::~CarrierPhaseEstimator() {

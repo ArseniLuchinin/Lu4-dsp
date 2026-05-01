@@ -55,6 +55,7 @@ public:
     virtual std::shared_ptr<IData> getData() = 0;
 
     ModuleMetaData getMetaData() {return m_metaData;}
+    inline const std::string& getJsonSchemaPath() const {return m_metaData.jsonModuleFilePath;}
 
 protected:
     src::severity_channel_logger<

@@ -72,7 +72,7 @@ IModule* createModule() {
 }
 
 BitPacker::BitPacker()
-    : IModule({"BitPacker", "", ""})
+    : IModule({"BitPacker", "libBitPacker-module.so", "module.json"})
 {}
 
 BitPacker::~BitPacker() = default;

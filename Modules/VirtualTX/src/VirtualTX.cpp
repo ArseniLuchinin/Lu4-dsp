@@ -10,7 +10,7 @@ IModule* createModule() {
 }
 
 VirtualTX::VirtualTX()
-    : IModule({"VirtualTX", "VirtualTX.so", "VirtualTX.json"})
+    : IModule({"VirtualTX", "libVirtualTX-module.so", "module.json"})
 {}
 
 VirtualTX::~VirtualTX() {

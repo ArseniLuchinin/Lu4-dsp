@@ -32,7 +32,7 @@ IModule* createModule() {
 }
 
 CarrierRecovery::CarrierRecovery()
-    : IModule({"CarrierRecovery", "", ""})
+    : IModule({"CarrierRecovery", "libCarrierRecovery-module.so", "module.json"})
 {}
 
 CarrierRecovery::~CarrierRecovery() {

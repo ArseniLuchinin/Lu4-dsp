@@ -33,7 +33,7 @@ IModule* createModule() {
 }
 
 BandPassCompute::BandPassCompute()
-    : IModule({"BandPassCompute", "", ""})
+    : IModule({"BandPassCompute", "libBandPassCompute-module.so", "module.json"})
     , m_sampleRate(0.0)
     , m_filterOrder(0)
     , m_lowCutoff(0.0)

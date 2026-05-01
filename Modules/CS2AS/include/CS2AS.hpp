@@ -9,7 +9,7 @@
 
 class CS2AS : public IModule {
 public:
-    inline CS2AS() : IModule ({"Complex spectrum to amplitude spectrum",  "", ""}){};
+    inline CS2AS() : IModule({"CS2AS", "libCS2AS-module.so", "module.json"}) {};
     ~CS2AS() = default;
 
     bool init() override;

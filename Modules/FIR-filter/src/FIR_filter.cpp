@@ -14,7 +14,7 @@ IModule* createModule() {
     return new FIRFilter();
 }
 
-FIRFilter::FIRFilter() : IModule({"FIR-filter", "", ""}) {}
+FIRFilter::FIRFilter() : IModule({"FIR-filter", "libFIR-filter-module.so", "module.json"}) {}
 FIRFilter::~FIRFilter()
 {
     if (m_energyBuffer) {

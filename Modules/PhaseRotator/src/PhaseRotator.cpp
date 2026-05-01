@@ -14,7 +14,7 @@ IModule* createModule() {
 }
 
 PhaseRotator::PhaseRotator()
-    : IModule({"PhaseRotator", "", ""})
+    : IModule({"PhaseRotator", "libPhaseRotator-module.so", "module.json"})
     , IVirtualRX()
 {}
 

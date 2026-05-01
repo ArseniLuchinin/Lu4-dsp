@@ -32,3 +32,6 @@ target_link_libraries(${PROJECT_NAME}
 if(BUILD_TESTING AND PROJECT_ENABLE_GTEST)
     add_subdirectory(tests)
 endif()
+
+configure_file(module.json ${CMAKE_BINARY_DIR}/Modules/${PROJECT_NAME}/module.json COPYONLY)
+configure_file(README.md ${CMAKE_BINARY_DIR}/Modules/${PROJECT_NAME}/README.md COPYONLY)

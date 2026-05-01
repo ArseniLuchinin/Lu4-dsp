@@ -74,7 +74,7 @@ IModule* createModule() {
 }
 
 FFT_Shift::FFT_Shift()
-    : IModule({"FFT_Shift", "FFT_Shift-module.so", "FFT_Shift.json"}) {}
+    : IModule({"FFT_Shift", "libFFT_Shift-module.so", "module.json"}) {}
 
 bool FFT_Shift::init() {
     if (m_fftSize == 0) {
