@@ -8,7 +8,6 @@ FIR-фильтрация сигнала.
 
 | Параметр | Тип | Описание |
 |---|---|---|
-| `coefficients data tag` | string | Тег для получения коэффициентов |
 | `taps` | `std::shared_ptr<IData>` / `std::shared_ptr<IGpuSignalData>` | Готовый контейнер коэффициентов |
 | `filter order` | int | Порядок фильтра (нечётное число) |
 | `coefficients type` | string | Тип: `auto`, `real`, `complex` |
