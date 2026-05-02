@@ -2,13 +2,17 @@ import json
 import os
 import redis
 import subprocess
+import threading
 from datetime import datetime
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
+from flask_socketio import SocketIO, join_room
 
 load_dotenv()
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 SERVER_PORT = int(os.environ.get('SERVER_PORT', '5000'))
 COMPUTING_SERVER_PATH = os.environ.get('COMPUTING_SERVER_PATH', './build/computing_server')
@@ -18,6 +22,8 @@ REDIS_HOST = os.environ.get('REDIS_HOST', '127.0.0.1')
 REDIS_PORT = int(os.environ.get('REDIS_PORT', '6379'))
 REDIS_PASSWORD = os.environ.get('REDISCLI_AUTH', None)
 MODULES_DIR = os.environ.get('MODULES_DIR', 'Modules')
+
+active_processes = {}
 
 
 def get_redis_client():
@@ -128,6 +134,23 @@ def get_module_detail(name):
     })
 
 
+def stream_logs(process, log_path, session_id):
+    """Читает stdout процесса, пишет в файл и рассылает через SocketIO."""
+    try:
+        with open(log_path, 'w', encoding='utf-8', errors='replace') as log_file:
+            for line in iter(process.stdout.readline, ''):
+                if not line:
+                    break
+                log_file.write(line)
+                log_file.flush()
+                socketio.emit('log', {'session_id': session_id, 'line': line}, room=session_id)
+    except Exception as e:
+        socketio.emit('log', {'session_id': session_id, 'line': f'[log stream error: {e}]\n'}, room=session_id)
+    finally:
+        process.stdout.close()
+        active_processes.pop(session_id, None)
+
+
 @app.route('/start', methods=['POST'])
 def start():
     data = request.get_json(silent=True) or {}
@@ -190,19 +213,29 @@ def start():
 
     computing_server_path = os.path.abspath(COMPUTING_SERVER_PATH)
     try:
-        log_file = open(log_path, 'w', encoding='utf-8')
         process = subprocess.Popen(
             [computing_server_path, pipeline_path],
-            stdout=log_file,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
             cwd=os.path.dirname(os.path.abspath(__file__))
         )
     except OSError as e:
-        log_file.close()
         return jsonify({
             'status': 'error',
             'message': f'Failed to start computing server: {str(e)}'
         }), 500
+
+    active_processes[session_name] = process
+
+    thread = threading.Thread(
+        target=stream_logs,
+        args=(process, log_path, session_name),
+        daemon=True
+    )
+    thread.start()
 
     return jsonify({
         'status': 'ok',
@@ -211,5 +244,13 @@ def start():
     })
 
 
+@socketio.on('join')
+def on_join(data):
+    session_id = data.get('session_id') if isinstance(data, dict) else None
+    if session_id:
+        join_room(session_id)
+        socketio.emit('joined', {'session_id': session_id}, room=session_id)
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=SERVER_PORT, debug=True)
+    socketio.run(app, host='0.0.0.0', port=SERVER_PORT, debug=True)

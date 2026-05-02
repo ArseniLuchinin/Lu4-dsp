@@ -145,6 +145,16 @@ std::any ConveyorFactory::convertParamValue(
         return jsonToAny(v);
     }
 
+    if (expectedType == typeid(int64_t)) {
+        if (v.is_int64()) {
+            return static_cast<int64_t>(v.as_int64());
+        }
+        if (v.is_double()) {
+            return static_cast<int64_t>(v.as_double());
+        }
+        return jsonToAny(v);
+    }
+
     if (expectedType == typeid(int)) {
         if (v.is_int64()) {
             return static_cast<int>(v.as_int64());

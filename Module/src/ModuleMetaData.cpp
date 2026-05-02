@@ -89,7 +89,7 @@ std::type_index ModuleMethaDataReader::stringToTypeIndex(const std::string& type
         return typeid(std::string);
     }
     if (typeStr == "int") {
-        return typeid(int);
+        return typeid(int64_t);
     }
     if (typeStr == "real") {
         return typeid(double);
