@@ -3,6 +3,7 @@ import os
 import redis
 import subprocess
 import threading
+import uuid
 from datetime import datetime
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
@@ -14,14 +15,17 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(BASE_DIR)
+
 SERVER_PORT = int(os.environ.get('SERVER_PORT', '5000'))
-COMPUTING_SERVER_PATH = os.environ.get('COMPUTING_SERVER_PATH', './build/computing_server')
-SESSIONS_DIR = os.environ.get('SESSIONS_DIR', './sessions')
+COMPUTING_SERVER_PATH = os.environ.get('COMPUTING_SERVER_PATH', os.path.join(PROJECT_DIR, 'build', 'computing_server'))
+SESSIONS_DIR = os.environ.get('SESSIONS_DIR', os.path.join(BASE_DIR, 'sessions'))
 
 REDIS_HOST = os.environ.get('REDIS_HOST', '127.0.0.1')
 REDIS_PORT = int(os.environ.get('REDIS_PORT', '6379'))
 REDIS_PASSWORD = os.environ.get('REDISCLI_AUTH', None)
-MODULES_DIR = os.environ.get('MODULES_DIR', 'Modules')
+MODULES_DIR = os.environ.get('MODULES_DIR', os.path.join(PROJECT_DIR, 'Modules'))
 
 active_processes = {}
 
@@ -165,7 +169,7 @@ def start():
         }), 400
 
     now = datetime.now()
-    session_name = f"session_{now.strftime('%Y%m%d')}"
+    session_name = f"session_{uuid.uuid4().hex}"
     session_dir = os.path.join(SESSIONS_DIR, session_name)
     log_filename = f"logs_{now.strftime('%Y%m%d_%H%M%S')}.txt"
     log_path = os.path.join(session_dir, log_filename)

@@ -4,4 +4,4 @@ signal_examples
 uml/images*
 serena.yaml
 
-sessions
+/server/sessions/

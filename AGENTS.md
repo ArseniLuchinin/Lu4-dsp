@@ -343,7 +343,7 @@ cmake --build build -j 6
 | `pipeline.json` | Конфигурация конвейеров обработки |
 | `variables.toml` | Глобальные переменные для подстановки |
 | `CMakePresets.json` | Пресеты сборки и тестирования |
-| `docs/server_api.md` | Документация HTTP API управляющего сервера (`server.py`) |
+| `docs/server_api.md` | Документация HTTP API управляющего сервера (`server/server.py`) |
 | `ARCHITECTURE.md` | Описание архитектуры приложения |
 | `QWEN.md` | Документация проекта (контекст для разработки) |
 | `main.cpp` | Точка входа + инициализация логирования |

@@ -1,6 +1,6 @@
 # HTTP API управляющего сервера
 
-Документация к `server.py` — управляющему Flask-серверу, который предоставляет REST API для клиентского приложения и запускает вычислительный бэкенд (`computing_server`).
+Документация к `server/server.py` — управляющему Flask-серверу, который предоставляет REST API для клиентского приложения и запускает вычислительный бэкенд (`computing_server`).
 
 > **Базовый URL:** `http://<host>:<SERVER_PORT>` (порт задаётся переменной окружения `SERVER_PORT`, по умолчанию `5000`).
 
@@ -20,7 +20,7 @@
 |---|---|---|
 | `SERVER_PORT` | Порт HTTP-/Socket.IO-сервера | `5000` |
 | `FLASK_SECRET_KEY` | Секретный ключ Flask (используется Socket.IO) | `dev-secret-key` |
-| `COMPUTING_SERVER_PATH` | Путь к исполняемому файлу `computing_server` | `./build/computing_server` |
+| `COMPUTING_SERVER_PATH` | Путь к исполняемому файлу `computing_server` | `../build/computing_server` |
 | `SESSIONS_DIR` | Директория для хранения сессий | `./sessions` |
 | `REDIS_HOST` | Хост Redis | `127.0.0.1` |
 | `REDIS_PORT` | Порт Redis | `6379` |
@@ -142,19 +142,19 @@
 
 **Логика работы:**
 1. Проверяет наличие полей `pipeline` и `variables`.
-2. Создаёт директорию сессии: `./sessions/session_YYYYMMDD/`.
+2. Создаёт директорию сессии: `./server/sessions/session_<uuid>/`.
 3. Записывает `variables` в файл `variables.toml` внутри директории сессии.
 4. Если `pipeline` передан как строка — парсит её в JSON-объект.
 5. Дополняет JSON-объект конвейера полем `variables` с абсолютным путём к сохранённому `variables.toml`.
 6. Записывает итоговый JSON в файл `pipeline.json` внутри директории сессии.
-7. Запускает `./build/computing_server <путь_k_pipeline.json>` в фоновом процессе (`subprocess.Popen`).
+7. Запускает `../build/computing_server <путь_k_pipeline.json>` в фоновом процессе (`subprocess.Popen`).
 8. STDOUT и STDERR вычислительного сервера транслируются в реальном времени через Socket.IO в **room** с именем `session_id`, а также сохраняются в лог-файл `logs_YYYYMMDD_HHMMSS.txt`.
 
 **Ответ (`200 OK`):**
 ```json
 {
   "status": "ok",
-  "session_id": "session_20260501",
+  "session_id": "session_a1b2c3d4e5f67890",
   "pid": 12345
 }
 ```
@@ -176,14 +176,14 @@
 **Клиент → Сервер:**
 ```json
 {
-  "session_id": "session_20260501"
+  "session_id": "session_a1b2c3d4e5f67890"
 }
 ```
 
 **Сервер → Клиент (`joined`):**
 ```json
 {
-  "session_id": "session_20260501"
+  "session_id": "session_a1b2c3d4e5f67890"
 }
 ```
 
@@ -194,7 +194,7 @@
 **Сервер → Клиент:**
 ```json
 {
-  "session_id": "session_20260501",
+  "session_id": "session_a1b2c3d4e5f67890",
   "line": "[2025-05-01 12:00:00] INFO: Module FileSrc initialized\n"
 }
 ```
