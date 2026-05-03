@@ -129,14 +129,20 @@ Modules/
     include/<ModuleName>.hpp
     src/<ModuleName>.cpp    — (опционально <ModuleName>Cuda.cu)
     CMakeLists.txt
+    module.json             — метаданные модуля (имя, описание, поля с типами)
     README.md               — пользовательская документация модуля
     tests/                  — опциональные модульные тесты (CMakeLists.txt + *.cpp)
+
+server/                     — управляющий сервер
+  server.py                 — HTTP API + Socket.IO (стриминг stdout/stderr сессий)
 
 tests/                      — E2E/интеграционные тесты
   qpsk_mvp_tests.cpp        — E2E-тест QPSK-цепочки
   data_container_copy_tests.cpp
   virtual_tx_rx_tests.cpp
   fetch_param_tests.cpp
+  benchmark.py              — скрипт бенчмаркинга (ctest + JUnit → CSV)
+  benchmark_results.csv     — результаты бенчмарков
   CMakeLists.txt
 
 utils/                      — Python-скрипты генерации сигналов
@@ -239,6 +245,18 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
 cmake --build build -j 6
 ```
 
+### Бенчмаркинг
+
+Скрипт `tests/benchmark.py` запускает тесты через `ctest --output-junit`, парсит XML для извлечения времени выполнения и сохраняет результаты в `tests/benchmark_results.csv`.
+
+```bash
+python tests/benchmark.py --preset all --repeat 5 --tests "Pattern"
+```
+
+- `--preset` — пресет ctest (по умолчанию `all`)
+- `--repeat` — количество прогонов каждого теста
+- `--tests` — regex-фильтр имён тестов
+
 ---
 
 ## Конвенции разработки
@@ -306,11 +324,12 @@ cmake --build build -j 6
 ## Добавление нового модуля
 
 1. Создать `Modules/<ModuleName>/` с `include/`, `src/`, `CMakeLists.txt`
-2. Реализовать интерфейс `IModule`: `init()`, `run()`, `setParam()`, `setData()`, `getData()`, `getMetaData()`
-3. Экспортировать `extern "C" IModule* createModule()` factory-функцию
-4. Зарегистрировать модуль в `Modules/module.hpp`
-5. Добавить тесты в `Modules/<ModuleName>/tests/` (опционально)
-6. Создать `Modules/<ModuleName>/README.md` — описание для пользователя + таблица параметров
+2. Создать `Modules/<ModuleName>/module.json` — метаданные модуля: имя, описание и список полей с типами (`string`, `int`, `real`, `bool`, `enum`)
+3. Реализовать интерфейс `IModule`: `init()`, `run()`, `setParam()`, `setData()`, `getData()`, `getMetaData()`
+4. Экспортировать `extern "C" IModule* createModule()` factory-функцию
+5. Зарегистрировать модуль в `Modules/module.hpp`
+6. Добавить тесты в `Modules/<ModuleName>/tests/` (опционально)
+7. Создать `Modules/<ModuleName>/README.md` — описание для пользователя + таблица параметров
 
 Шаблоны: `utils/CMakeLists.template`, `utils/CreateModuleDir.sh`.
 

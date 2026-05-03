@@ -36,7 +36,7 @@ cmake --build --preset debug -j 6     # явное указание паралл
 ### Запуск
 ```bash
 ./build/computing_server [path/to/pipeline.json]
-# По умолчанию: /home/luchinin/my_source/Course_poject/Server/pipeline.json
+# По умолчанию: pipeline.json в корне проекта
 ```
 
 ### Тесты
@@ -48,6 +48,12 @@ ctest --preset e2e                    # только end-to-end тесты
 # Один конкретный тест:
 ctest --preset all -R "TestNamePattern" -V
 ```
+
+### Бенчмарк
+```bash
+python tests/benchmark.py
+```
+`tests/benchmark.py` — измерение производительности тестов.
 
 ### Включение тестов (первый раз)
 ```bash
@@ -69,13 +75,16 @@ variables.toml              — переменные для подстановк
 Core/                       — оркестрация конвейеров (ConveyorOrchestrator)
 DataContainers/             — CPU/GPU контейнеры данных
 Module/                     — базовый интерфейс IModule
-Modules/                    — 19 модулей обработки
+Modules/                    — 20 модулей обработки
   <ModuleName>/
     include/<ModuleName>.hpp
     src/<ModuleName>.cpp
     CMakeLists.txt
+    module.json             — метаданные модуля (описание, поля с типами)
     README.md               — пользовательская документация модуля
     tests/                  — опциональные тесты модуля
+server/                     — управляющий сервер
+  server.py                 — Flask+Socket.IO сервер
 tests/                      — E2E/integration тесты
 utils/                      — Python скрипты для генерации сигналов
 ```
@@ -98,6 +107,7 @@ utils/                      — Python скрипты для генерации 
 | `CS2AS` | Конвертер Complex → Array of Structures |
 | `PhaseRotator` | Фазовое вращение |
 | `FileSrc` | Чтение данных из файла |
+| `FileWriter` | Запись бинарных данных в файл |
 | `TextFileWriter` | Запись текста в файл |
 | `VirtualTX` | Виртуальная передача данных между конвейерами |
 | `VirtualRX` | Виртуальный приём данных между конвейерами |
@@ -248,4 +258,5 @@ utils/                      — Python скрипты для генерации 
 | `variables.toml` | Глобальные переменные для подстановки |
 | `CMakePresets.json` | Пресеты сборки и тестирования |
 | `ARCHITECTURE.md` | Описание архитектуры приложения |
+| `server/server.py` | Управляющий Flask+Socket.IO сервер |
 | `main.cpp` | Точка входа + инициализация логирования |
