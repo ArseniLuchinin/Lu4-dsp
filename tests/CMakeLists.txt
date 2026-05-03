@@ -47,6 +47,52 @@ gtest_discover_tests(qpsk_mvp_tests
 )
 
 # ============================================================================
+# Spectrogram E2E Tests
+# ============================================================================
+
+add_executable(spectrogram_e2e_tests
+    spectrogram_e2e_tests.cpp
+)
+
+set_target_properties(spectrogram_e2e_tests PROPERTIES
+    FOLDER "Tests/E2E"
+)
+
+target_include_directories(spectrogram_e2e_tests
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/FFT/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/CS2AS/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/FFT_Shift/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../Modules/SpectrogramPlot/include
+        ${MODULE_INCLUDE_DIRS}
+        ${DATA_CONTAINERS_INCLUDE_DIRS}
+)
+
+target_compile_definitions(spectrogram_e2e_tests
+    PRIVATE
+        PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+target_link_libraries(spectrogram_e2e_tests
+    PRIVATE
+        GTest::gtest_main
+        FFT-module
+        CS2AS-module
+        FFT_Shift-module
+        SpectrogramPlot-module
+        DataContainers
+        Module
+        CUDA::cudart
+        logger
+)
+
+gtest_discover_tests(spectrogram_e2e_tests
+    PROPERTIES
+        LABELS "e2e"
+        TIMEOUT 120
+)
+
+# ============================================================================
 # Data Container Copy Tests
 # ============================================================================
 
