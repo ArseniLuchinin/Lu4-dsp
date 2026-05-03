@@ -3,5 +3,6 @@ FFT_HOP_SIZE = 8192
 MAX_SIZE = 268435456
 SAMPLE_RATE = 2097152
 
+QPSK_FILE = '/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_signal.bin'
 QPSK_SPS = 128
 QPSK_SYMBOL_RATE = 16384

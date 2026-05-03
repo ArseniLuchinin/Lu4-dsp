@@ -153,7 +153,7 @@ if (!tagToken.empty()) {
 {
     "name": "signal_process",
     "modules": [
-        { "name": "FileSrc", "params": { "filePath": "..." } },
+        { "name": "FileSrc", "params": { "file name": "..." } },
         { "name": "FIR-filter", "params": { "taps": "@fir_rrc_coeff" } },
         { "name": "..." }
     ]

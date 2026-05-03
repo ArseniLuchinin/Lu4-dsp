@@ -62,8 +62,8 @@ class VirtualTransmitter {
 }
 
 class FileSrc <<module>> {
-    - m_filePath : string
-    - m_blockSize : size_t
+    - m_fileName : string
+    - m_maxSize : size_t
     - m_data : shared_ptr<IData>
     + setParam(name, value) : void
     + init() : bool
@@ -79,7 +79,7 @@ class FIRFilter <<module>> {
 }
 
 class CarrierRecovery <<module>> {
-    - m_sampleRate : float
+    - m_order : int
     - m_data : shared_ptr<IData>
     + setParam(name, value) : void
     + init() : bool

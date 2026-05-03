@@ -130,7 +130,7 @@
         "modules": [
           {
             "name": "FileSrc",
-            "params": { "filePath": "/data/input.bin" }
+            "params": { "file name": "/data/input.bin" }
           }
         ]
       }

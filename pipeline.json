@@ -29,7 +29,7 @@
         {
           "name": "FileSrc",
           "params": {
-            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_signal.bin",
+            "file name": "$QPSK_FILE",
             "data type": "complex",
             "max size": "$MAX_SIZE"
           }
