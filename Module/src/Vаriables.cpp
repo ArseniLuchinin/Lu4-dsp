@@ -65,7 +65,8 @@ bool Variables::processValue(const std::string& key,
             return true;
         }
 
-        return error(key, "string not allowed (only enum)");
+        data_[key] = str;
+        return true;
     }
 
     // INT

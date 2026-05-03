@@ -7,7 +7,7 @@
         {
           "name": "FileSrc",
           "params": {
-            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/noised_amc_signal.bin",
+            "file name": "$SIGNAL_PATH",
             "data type": "complex",
             "max size": "$MAX_SIZE"
           }
@@ -43,7 +43,7 @@
             "db max": 0.0,
             "mask below db": -20.0,
             "show": false,
-            "save path": "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogram",
+            "save path": "$SPECTROGRAM_PATH",
             "png compression": 1
           }
         }
