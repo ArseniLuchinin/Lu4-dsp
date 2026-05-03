@@ -301,7 +301,7 @@ TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
     ASSERT_TRUE(fileSrc.init());
 
     FIRFilter fir;
-    fir.setParam("coefficients data tag", std::string("fir_rrc_coeff_file_e2e"));
+    fir.fetchParam("taps", std::string("@fir_rrc_coeff_file_e2e"));
     fir.setParam("filter order", int64_t(1));
     fir.setParam("coefficients type", std::string("real"));
     fir.setParam("log energy", false);
@@ -417,7 +417,7 @@ TEST(QpskMvpTest, FileE2E_QpskRrc128_InputEqualsOutput)
     ASSERT_TRUE(fileSrc.init());
 
     FIRFilter fir;
-    fir.setParam("coefficients data tag", std::string("fir_rrc_coeff_file_e2e_rrc"));
+    fir.fetchParam("taps", std::string("@fir_rrc_coeff_file_e2e_rrc"));
     fir.setParam("filter order", int64_t((8 * kQpskSps) + 1));
     fir.setParam("coefficients type", std::string("real"));
     fir.setParam("log energy", false);
