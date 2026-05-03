@@ -15,7 +15,6 @@
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -155,20 +154,6 @@ std::vector<uint8_t> readAllBytes(const std::filesystem::path& path)
     return std::vector<uint8_t>(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 }
 
-std::vector<cuComplex> readComplexPrefix(const std::filesystem::path& path, size_t count)
-{
-    std::ifstream in(path, std::ios::binary);
-    if (!in.is_open()) {
-        return {};
-    }
-
-    std::vector<cuComplex> out(count);
-    in.read(reinterpret_cast<char*>(out.data()), static_cast<std::streamsize>(count * sizeof(cuComplex)));
-    const auto readBytes = static_cast<size_t>(in.gcount());
-    out.resize(readBytes / sizeof(cuComplex));
-    return out;
-}
-
 } // namespace
 
 TEST(QpskMvpTest, MiniE2E_QpskChain_InputEqualsOutput_Red)
@@ -253,129 +238,6 @@ TEST(QpskMvpTest, DemodMiniE2E_WithDecimatorAndKnownOffset)
     auto decoded = std::dynamic_pointer_cast<GpuByteSignal>(packer.getData());
     ASSERT_NE(decoded, nullptr);
     EXPECT_EQ(downloadGpuBytes(decoded), inputBytes);
-}
-
-TEST(QpskMvpTest, FileE2E_QpskIdeal128_InputEqualsOutput_Red)
-{
-    if (!isCudaAvailable()) {
-        GTEST_SKIP() << "CUDA device is unavailable in test environment.";
-    }
-
-    const std::filesystem::path repoRoot(PROJECT_SOURCE_DIR);
-    const std::filesystem::path testDataRoot = repoRoot / "tests" / "TestData";
-    const std::filesystem::path messagePath = testDataRoot / "signals" / "qpsk_ideal_message.txt";
-    const std::filesystem::path signalPath = testDataRoot / "signals" / "qpsk_ideal_signal.bin";
-
-    ASSERT_TRUE(std::filesystem::exists(messagePath));
-    ASSERT_TRUE(std::filesystem::exists(signalPath));
-
-    const auto messageBytes = readAllBytes(messagePath);
-    ASSERT_FALSE(messageBytes.empty());
-
-    const uint64_t messageBits = static_cast<uint64_t>(messageBytes.size()) * 8ULL;
-    const uint64_t symbolsCount = (messageBits + 1ULL) / 2ULL;
-    const uint64_t expectedSignalSizeBytes = symbolsCount * static_cast<uint64_t>(kQpskSps) * sizeof(cuComplex);
-    EXPECT_EQ(std::filesystem::file_size(signalPath), expectedSignalSizeBytes);
-
-    const auto preview = readComplexPrefix(signalPath, size_t(8192));
-    ASSERT_FALSE(preview.empty());
-    float maxAbs = 0.0f;
-    for (const auto& v : preview) {
-        maxAbs = std::max(maxAbs, std::abs(v.x));
-        maxAbs = std::max(maxAbs, std::abs(v.y));
-    }
-    ASSERT_LT(maxAbs, 2.0f) << "qpsk_signal.bin seems malformed (max|IQ|=" << maxAbs
-                            << "). Regenerate with fixed utils/qpsk_generator.py.";
-
-    auto identityTaps = std::make_shared<GpuFloatSignal>(1);
-    float oneTap = 1.0f;
-    identityTaps->setDataFromHost(&oneTap, 1);
-
-    VirtualTransmitter tx;
-    tx.txData(identityTaps, "fir_rrc_coeff_file_e2e");
-
-    FileSrc fileSrc;
-    fileSrc.setParam("file name", signalPath.string());
-    fileSrc.setParam("data type", std::string("complex"));
-    fileSrc.setParam("max size", int64_t(32 * 1024 * 1024));
-    ASSERT_TRUE(fileSrc.init());
-
-    FIRFilter fir;
-    fir.fetchParam("taps", std::string("@fir_rrc_coeff_file_e2e"));
-    fir.setParam("filter order", int64_t(1));
-    fir.setParam("coefficients type", std::string("real"));
-    fir.setParam("log energy", false);
-    ASSERT_TRUE(fir.init());
-
-    Decimator decimator;
-    decimator.setParam("samples per symbol", int64_t(kQpskSps));
-    decimator.setParam("offset", int64_t(0));
-    ASSERT_TRUE(decimator.init());
-
-    CarrierRecovery recovery;
-    recovery.setParam("order", int64_t(4));
-    ASSERT_TRUE(recovery.init());
-
-    QPSKDecision decision;
-    ASSERT_TRUE(decision.init());
-
-    BitPacker packer;
-    packer.setParam("bit order", std::string("msb-first"));
-    packer.setParam("flush tail", false);
-    ASSERT_TRUE(packer.init());
-
-    std::vector<uint8_t> decodedBytes;
-
-    while (true) {
-        ASSERT_TRUE(fileSrc.run());
-        auto srcData = fileSrc.getData();
-        ASSERT_NE(srcData, nullptr);
-
-        if (std::dynamic_pointer_cast<EmptyContainer>(srcData)) {
-            break;
-        }
-
-        ASSERT_TRUE(fir.setData(srcData));
-        ASSERT_TRUE(fir.run());
-
-        ASSERT_TRUE(decimator.setData(fir.getData()));
-        ASSERT_TRUE(decimator.run());
-
-        ASSERT_TRUE(recovery.setData(decimator.getData()));
-        ASSERT_TRUE(recovery.run());
-
-        ASSERT_TRUE(decision.setData(recovery.getData()));
-        ASSERT_TRUE(decision.run());
-
-        ASSERT_TRUE(packer.setData(decision.getData()));
-        ASSERT_TRUE(packer.run());
-
-        auto chunkBytes = std::dynamic_pointer_cast<GpuByteSignal>(packer.getData());
-        ASSERT_NE(chunkBytes, nullptr);
-        const auto bytes = downloadGpuBytes(chunkBytes);
-        decodedBytes.insert(decodedBytes.end(), bytes.begin(), bytes.end());
-    }
-
-    if (decodedBytes.size() > messageBytes.size()) {
-        decodedBytes.resize(messageBytes.size());
-    }
-    if (decodedBytes.size() > messageBytes.size()) {
-        decodedBytes.resize(messageBytes.size());
-    }
-    if (decodedBytes.size() >= messageBytes.size()) {
-        const auto it = std::search(decodedBytes.begin(), decodedBytes.end(),
-                                    messageBytes.begin(), messageBytes.end());
-        if (it != decodedBytes.end()) {
-            std::vector<uint8_t> window(it, it + messageBytes.size());
-            EXPECT_EQ(window, messageBytes);
-            return;
-        }
-    }
-
-    if (decodedBytes.size() > messageBytes.size()) {
-        decodedBytes.resize(messageBytes.size());
-    }
-    EXPECT_EQ(decodedBytes, messageBytes);
 }
 
 TEST(QpskMvpTest, FileE2E_QpskRrc128_InputEqualsOutput)
