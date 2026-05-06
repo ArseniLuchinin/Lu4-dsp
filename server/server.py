@@ -1,6 +1,5 @@
 import json
 import os
-import redis
 import subprocess
 import threading
 import uuid
@@ -20,21 +19,9 @@ SERVER_PORT = int(os.environ.get('SERVER_PORT', '5000'))
 COMPUTING_SERVER_PATH = os.environ.get('COMPUTING_SERVER_PATH', os.path.join(PROJECT_DIR, 'build', 'computing_server'))
 SESSIONS_DIR = os.environ.get('SESSIONS_DIR', os.path.join(BASE_DIR, 'sessions'))
 
-REDIS_HOST = os.environ.get('REDIS_HOST', '127.0.0.1')
-REDIS_PORT = int(os.environ.get('REDIS_PORT', '6379'))
-REDIS_PASSWORD = os.environ.get('REDISCLI_AUTH', None)
-MODULES_DIR = os.environ.get('MODULES_DIR', os.path.join(PROJECT_DIR, 'Modules'))
+MODULES_DIR = os.environ.get('MODULES_DIR', os.path.join(PROJECT_DIR, 'build', 'Modules'))
 
 active_processes = {}
-
-
-def get_redis_client():
-    return redis.Redis(
-        host=REDIS_HOST,
-        port=REDIS_PORT,
-        password=REDIS_PASSWORD,
-        decode_responses=True
-    )
 
 
 @app.route('/')
@@ -47,31 +34,23 @@ def index():
 
 @app.route('/modules/list')
 def get_modules():
-    try:
-        r = get_redis_client()
-        r.ping()
-    except redis.ConnectionError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Failed to connect to Redis: {str(e)}'
-        }), 503
-    except redis.AuthenticationError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Redis authentication failed: {str(e)}'
-        }), 503
-
-    keys = r.keys('*-module')
     modules = []
-    for key in keys:
-        module_name = key[:-len('-module')]
-        module_json_path = os.path.join(MODULES_DIR, module_name, 'module.json')
-        readme_path = os.path.join(MODULES_DIR, module_name, 'README.md')
-        modules.append({
-            'name': module_name,
-            'hasModuleJson': os.path.isfile(module_json_path),
-            'hasReadme': os.path.isfile(readme_path)
-        })
+    try:
+        for entry in os.scandir(MODULES_DIR):
+            if entry.is_dir():
+                module_name = entry.name
+                module_json_path = os.path.join(MODULES_DIR, module_name, 'module.json')
+                readme_path = os.path.join(MODULES_DIR, module_name, 'README.md')
+                modules.append({
+                    'name': module_name,
+                    'hasModuleJson': os.path.isfile(module_json_path),
+                    'hasReadme': os.path.isfile(readme_path)
+                })
+    except OSError as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to scan modules directory: {str(e)}'
+        }), 500
 
     return jsonify({
         'status': 'ok',
@@ -82,29 +61,15 @@ def get_modules():
 
 @app.route('/modules/<name>')
 def get_module_detail(name):
-    try:
-        r = get_redis_client()
-        r.ping()
-    except redis.ConnectionError as e:
+    module_dir = os.path.join(MODULES_DIR, name)
+    if not os.path.isdir(module_dir):
         return jsonify({
             'status': 'error',
-            'message': f'Failed to connect to Redis: {str(e)}'
-        }), 503
-    except redis.AuthenticationError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Redis authentication failed: {str(e)}'
-        }), 503
-
-    module_key = f'{name}-module'
-    if not r.exists(module_key):
-        return jsonify({
-            'status': 'error',
-            'message': f'Module "{name}" not found in Redis'
+            'message': f'Module "{name}" not found'
         }), 404
 
-    module_json_path = os.path.join(MODULES_DIR, name, 'module.json')
-    readme_path = os.path.join(MODULES_DIR, name, 'README.md')
+    module_json_path = os.path.join(module_dir, 'module.json')
+    readme_path = os.path.join(module_dir, 'README.md')
 
     module_json_data = None
     if os.path.isfile(module_json_path):

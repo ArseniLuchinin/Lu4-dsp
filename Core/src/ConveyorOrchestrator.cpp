@@ -8,9 +8,9 @@
 #include <fstream>
 #include <sstream>
 
-ConveyorOrchestrator::ConveyorOrchestrator(const std::string& configPath)
+ConveyorOrchestrator::ConveyorOrchestrator(const std::string& configPath, const std::string& modulesDir)
     : m_configPath(configPath)
-    , m_moduleFactory(".")
+    , m_moduleFactory(modulesDir)
     , m_conveyorFactory(m_moduleFactory)
     , logger(boost::log::keywords::channel = "ConveyorOrchestrator")
 {}

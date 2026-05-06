@@ -20,16 +20,12 @@ add_library(${PROJECT_NAME}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
-    ${HIREDIS_INCLUDE_DIRS}
-    ${REDISPP_INCLUDE_DIRS}
     include
     ${MODULE_INCLUDE_DIRS}
     ${DATA_CONTAINERS_INCLUDE_DIRS}
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    ${HIREDIS_LIBRARIES}
-    ${REDISPP_LIBRARIES}
     Boost::json
     logger
     Module

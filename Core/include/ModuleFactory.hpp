@@ -1,8 +1,6 @@
 #ifndef MODULE_FACTORY_H
 #define MODULE_FACTORY_H
 
-#include <sw/redis++/redis++.h>
-
 #include <IModule.hpp>
 
 #include <memory>
@@ -11,7 +9,7 @@
 #include <logger.hpp>
 
 class ModuleFactory {
-    /// @brief Список модулей и директории с .so файлом и метаданными 
+    /// @brief Список модулей и директории с .so файлом и метаданными
     using modulesPackage_t = std::unordered_map<std::string, std::string>;
 public:
     /*!
@@ -28,7 +26,7 @@ private:
         logging::trivial::severity_level
     > logger;
 
-    sw::redis::Redis m_redis;
+    std::string m_modulesDir;
     modulesPackage_t modulesPackage;
 };
 

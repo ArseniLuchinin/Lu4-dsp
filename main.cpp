@@ -7,8 +7,19 @@
 #include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/log/support/date_time.hpp>
 
+#include <filesystem>
+#include <unistd.h>
+
+#include <logger.hpp>
+
 namespace logging = boost::log;
 namespace expr = boost::log::expressions;
+
+namespace {
+    src::severity_channel_logger<
+        logging::trivial::severity_level
+    > logger(boost::log::keywords::channel = "Main");
+}
 
 bool checkGPU();
 
@@ -21,6 +32,17 @@ namespace colors {
     inline const char* blue    = "\033[34m";
     inline const char* cyan    = "\033[36m";
     inline const char* gray    = "\033[90m";
+}
+
+std::filesystem::path getExecutableDir() {
+    char path[4096];
+    const ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (len == -1) {
+        ERROR << "Failed to read /proc/self/exe" << std::endl;
+        return std::filesystem::path(".");
+    }
+    path[len] = '\0';
+    return std::filesystem::path(path).parent_path();
 }
 
 void init_logging()
@@ -68,7 +90,8 @@ int32_t main(int argc, char const *argv[])
     init_logging();
     const std::string configPath = (argc > 1) ? argv[1] : "/home/luchinin/my_source/Course_poject/Server/pipeline.json";
 
-    ConveyorOrchestrator orchestrator(configPath);
+    auto modulesDir = (getExecutableDir() / "Modules").string();
+    ConveyorOrchestrator orchestrator(configPath, modulesDir);
     if (!orchestrator.load()) {
         std::cerr << "Failed to load config: " << configPath << std::endl;
         return 1;

@@ -14,7 +14,7 @@
 class ConveyorOrchestrator {
     using ConveyorConfig = boost::json::object;
 public:
-    explicit ConveyorOrchestrator(const std::string& configPath);
+    explicit ConveyorOrchestrator(const std::string& configPath, const std::string& modulesDir);
 
     bool load();
     bool run();

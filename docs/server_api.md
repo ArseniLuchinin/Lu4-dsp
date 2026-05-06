@@ -11,7 +11,6 @@
 - Формат обмена: **JSON**.
 - Все ответы содержат поле `status`: `"ok"` или `"error"`.
 - При ошибках возвращается соответствующий HTTP-код (`4xx`, `5xx`) и поле `message` с описанием.
-- Для работы эндпоинтов `/modules/list` и `/modules/<name>` требуется доступ к Redis (см. переменные окружения `REDIS_HOST`, `REDIS_PORT`, `REDISCLI_AUTH`).
 - Сервер поддерживает **Socket.IO** для real-time передачи логов запущенных расчётов.
 
 ### Переменные окружения
@@ -22,10 +21,7 @@
 | `FLASK_SECRET_KEY` | Секретный ключ Flask (используется Socket.IO) | `dev-secret-key` |
 | `COMPUTING_SERVER_PATH` | Путь к исполняемому файлу `computing_server` | `../build/computing_server` |
 | `SESSIONS_DIR` | Директория для хранения сессий | `./sessions` |
-| `REDIS_HOST` | Хост Redis | `127.0.0.1` |
-| `REDIS_PORT` | Порт Redis | `6379` |
-| `REDISCLI_AUTH` | Пароль Redis (если требуется) | `None` |
-| `MODULES_DIR` | Корневая директория с модулями | `Modules` |
+| `MODULES_DIR` | Корневая директория с модулями | `build/Modules` |
 
 ---
 
@@ -47,12 +43,11 @@
 
 ### `GET /modules/list`
 
-Возвращает список всех модулей, зарегистрированных в Redis.
+Возвращает список всех модулей, найденных в директории `MODULES_DIR`.
 
 **Логика работы:**
-1. Проверяет соединение с Redis (`PING`).
-2. Запрашивает все ключи вида `*-module`.
-3. Для каждого ключа проверяет наличие `module.json` и `README.md` в поддиректории `Modules/<module_name>/`.
+1. Сканирует директорию `MODULES_DIR`.
+2. Для каждой поддиректории `<name>` проверяет наличие `module.json` и `README.md`.
 
 **Ответ (`200 OK`):**
 ```json
@@ -74,9 +69,6 @@
 }
 ```
 
-**Возможные ошибки:**
-- `503 Service Unavailable` — не удалось подключиться к Redis или ошибка аутентификации.
-
 ---
 
 ### `GET /modules/<name>`
@@ -84,13 +76,12 @@
 Возвращает детальную информацию о конкретном модуле.
 
 **Параметры URL:**
-- `name` — имя модуля (как в Redis, без суффикса `-module`).
+- `name` — имя модуля (имя поддиректории в `MODULES_DIR`).
 
 **Логика работы:**
-1. Проверяет соединение с Redis.
-2. Проверяет существование ключа `<name>-module` в Redis.
-3. Читает и парсит `Modules/<name>/module.json`.
-4. Читает `Modules/<name>/README.md` (если есть).
+1. Проверяет существование поддиректории `<name>` в `MODULES_DIR`.
+2. Читает и парсит `MODULES_DIR/<name>/module.json`.
+3. Читает `MODULES_DIR/<name>/README.md` (если есть).
 
 **Ответ (`200 OK`):**
 ```json
@@ -103,8 +94,7 @@
 ```
 
 **Возможные ошибки:**
-- `503 Service Unavailable` — проблема с подключением к Redis.
-- `404 Not Found` — модуль не найден в Redis.
+- `404 Not Found` — модуль не найден в `MODULES_DIR`.
 - `500 Internal Server Error` — ошибка чтения или парсинга `module.json` / `README.md`.
 
 ---

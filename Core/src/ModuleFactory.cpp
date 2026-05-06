@@ -1,22 +1,12 @@
 #include <ModuleFactory.hpp>
 #include <dlfcn.h>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <logger.hpp>
 
-
-namespace {
-    sw::redis::ConnectionOptions createConnection() {
-    sw::redis::ConnectionOptions opts;
-    opts.host = "127.0.0.1";
-    opts.port = 6379;
-    opts.password = std::getenv("REDISCLI_AUTH");
-        return opts;
-    }
-}
-
-ModuleFactory::ModuleFactory(const std::string& modulesDir) : 
-    m_redis(createConnection()), 
+ModuleFactory::ModuleFactory(const std::string& modulesDir) :
+    m_modulesDir(modulesDir),
     logger(boost::log::keywords::channel = "ModuleFactory") {
 }
 
@@ -44,10 +34,11 @@ IModule* ModuleFactory::createModule(const std::string& moduleName) {
 }
 
 std::string ModuleFactory::findModule(const std::string& moduleName) {
-    const auto redisName = moduleName + "-module";
-    const auto libPath = m_redis.get(redisName);
-    if(libPath)
-        return *libPath;
-    
+    const auto libPath = std::filesystem::path(m_modulesDir) / moduleName / ("lib" + moduleName + "-module.so");
+    if (std::filesystem::exists(libPath)) {
+        return libPath.string();
+    }
+
+    ERROR << "Module not found: " << moduleName << " at " << libPath.string() << std::endl;
     return "";
 }

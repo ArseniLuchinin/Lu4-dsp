@@ -11,9 +11,6 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "CMakeTargets")
 
 find_package(CUDAToolkit)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(HIREDIS REQUIRED hiredis)
-pkg_check_modules(REDISPP REQUIRED redis++)
 find_package(Boost REQUIRED COMPONENTS log log_setup thread system json)
 find_package(tomlplusplus CONFIG REQUIRED)
 
