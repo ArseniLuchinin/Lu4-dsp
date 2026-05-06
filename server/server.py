@@ -5,11 +5,9 @@ import subprocess
 import threading
 import uuid
 from datetime import datetime
-from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_socketio import SocketIO, join_room
 
-load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
