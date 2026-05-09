@@ -1,107 +1,113 @@
 // src/Conveyor.cpp
 #include <Conveyor.hpp>
-#include <iostream> // Для базового логирования
+#include <chrono>    // Для измерения времени
+#include <iostream>  // Для базового логирования
 #include <stdexcept> // Для исключений
-#include <chrono> // Для измерения времени
 
 #include <CpuFloatSignal.hpp>
 
-
-Conveyor::Conveyor(const std::string& name)
-    : m_conveyorName(name)
-    , m_isInitialized(false)
-    , logger(boost::log::keywords::channel = name) {
-    INFO << "Conveyor '" << m_conveyorName << "' created." << std::endl;
+Conveyor::Conveyor(const std::string &name)
+    : m_conveyorName(name), m_isInitialized(false),
+      logger(boost::log::keywords::channel = name) {
+  INFO << "Conveyor '" << m_conveyorName << "' created." << std::endl;
 }
 
-const std::vector<std::shared_ptr<IModule>>& Conveyor::getModules() const {
-    return m_modules;
+const std::vector<std::shared_ptr<IModule>> &Conveyor::getModules() const {
+  return m_modules;
 }
 
-std::string Conveyor::getName() const {
-    return m_conveyorName;
-}
+std::string Conveyor::getName() const { return m_conveyorName; }
 
-bool Conveyor::getIsInitialized() const {
-    return m_isInitialized;
-}
+bool Conveyor::getIsInitialized() const { return m_isInitialized; }
 
 void Conveyor::addModule(std::shared_ptr<IModule> module) {
-    if (module) {
-        m_modules.push_back(module);
-        INFO << "Module added to conveyor '" << m_conveyorName << "'. Total modules: " << m_modules.size() << std::endl;
-    } else {
-        ERROR << "Attempted to add a null module to conveyor '" << m_conveyorName << "'." << std::endl;
-    }
+  if (module) {
+    m_modules.push_back(module);
+    INFO << "Module added to conveyor '" << m_conveyorName
+         << "'. Total modules: " << m_modules.size() << std::endl;
+  } else {
+    ERROR << "Attempted to add a null module to conveyor '" << m_conveyorName
+          << "'." << std::endl;
+  }
 }
 
 void Conveyor::removeModule(size_t index) {
-    if (index < m_modules.size()) {
-        INFO << "Removing module at index " << index << " from conveyor '" << m_conveyorName << "'." << std::endl;
-        m_modules.erase(m_modules.begin() + index);
-    } else {
-        ERROR << "Error: Index " << index << " out of bounds for conveyor '" << m_conveyorName << "'." << std::endl;
-    }
+  if (index < m_modules.size()) {
+    INFO << "Removing module at index " << index << " from conveyor '"
+         << m_conveyorName << "'." << std::endl;
+    m_modules.erase(m_modules.begin() + index);
+  } else {
+    ERROR << "Error: Index " << index << " out of bounds for conveyor '"
+          << m_conveyorName << "'." << std::endl;
+  }
 }
 
-
 bool Conveyor::init() {
-    if(m_modules.empty())
-        return false;
+  if (m_modules.empty())
+    return false;
 
-    for(auto& module : m_modules){
-        if(not module->init()){
-            ERROR << "Failed to initialize module" << std::endl;
-            return false;
-        }
+  for (auto &module : m_modules) {
+    if (not module->init()) {
+      ERROR << "Failed to initialize module" << std::endl;
+      return false;
     }
+  }
 
-    m_isInitialized = true;
-    return true; 
+  m_isInitialized = true;
+  return true;
 }
 
 bool Conveyor::run() {
-    auto module = m_modules.front();
-    auto moduleStart = std::chrono::steady_clock::now();
-    if(not module->run()){
-        ERROR << "Fail to run: " << module->getMetaData().moduleName << std::endl;
+  auto module = m_modules.front();
+  auto moduleStart = std::chrono::steady_clock::now();
+  if (not module->run()) {
+    ERROR << "Fail to run: " << module->getMetaData().moduleName << std::endl;
+    return false;
+  }
+  auto moduleEnd = std::chrono::steady_clock::now();
+  auto moduleMs =
+      std::chrono::duration<double, std::milli>(moduleEnd - moduleStart)
+          .count();
+  INFO << "Module '" << module->getMetaData().moduleName
+       << "' time: " << moduleMs << " ms" << std::endl;
+
+  auto data = module->getData();
+  if (data->size() == 0) {
+    INFO << "finished" << std::endl;
+    return false;
+  }
+
+  for (size_t i = 1; i < m_modules.size(); ++i) {
+    module = m_modules[i];
+
+    if (not data->isValid()) {
+      ERROR << "Invalid data from: " << module->getMetaData().moduleName
+            << std::endl;
+      return false;
+    }
+
+    if (module) {
+      if (not module->setData(data)) {
+        ERROR << module->getMetaData().moduleName
+              << "Con't use data tupe: " << data->getDataName() << std::endl;
         return false;
-    }
-    auto moduleEnd = std::chrono::steady_clock::now();
-    auto moduleMs = std::chrono::duration<double, std::milli>(moduleEnd - moduleStart).count();
-    INFO << "Module '" << module->getMetaData().moduleName << "' time: " << moduleMs << " ms" << std::endl;
+      }
 
-    auto data = module->getData();
-    if(data->size() == 0){
-        INFO << "finished" << std::endl;
+      moduleStart = std::chrono::steady_clock::now();
+      if (not module->run()) {
+        ERROR << "Fail to run: " << module->getMetaData().moduleName
+              << std::endl;
         return false;
+      }
+      moduleEnd = std::chrono::steady_clock::now();
+      moduleMs =
+          std::chrono::duration<double, std::milli>(moduleEnd - moduleStart)
+              .count();
+      INFO << "Module '" << module->getMetaData().moduleName
+           << "'\ttime: " << moduleMs << " ms" << std::endl;
+
+      data = module->getData();
     }
-
-    for(size_t i = 1; i < m_modules.size(); ++i){
-        module = m_modules[i];
-
-        if(not data->isValid()){
-            ERROR << "Invalid data from: " << module->getMetaData().moduleName << std::endl;
-            return false;
-        }
-
-        if (module) {
-            if(not module->setData(data)){
-                ERROR << module->getMetaData().moduleName << "Con't use data tupe: " << data->getDataName() << std::endl;
-                return false;
-            }
-
-            moduleStart = std::chrono::steady_clock::now();
-            if(not module->run()){
-                ERROR << "Fail to run: " << module->getMetaData().moduleName << std::endl;
-                return false;
-            }
-            moduleEnd = std::chrono::steady_clock::now();
-            moduleMs = std::chrono::duration<double, std::milli>(moduleEnd - moduleStart).count();
-            INFO << "Module '" << module->getMetaData().moduleName << "'\ttime: " << moduleMs << " ms" << std::endl;
-
-            data = module->getData();
-        }
-    }
-    return true;
+  }
+  return true;
 }

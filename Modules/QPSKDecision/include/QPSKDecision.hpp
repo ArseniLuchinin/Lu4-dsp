@@ -10,19 +10,19 @@
 
 class QPSKDecision : public IModule {
 public:
-    QPSKDecision();
-    ~QPSKDecision() override;
+  QPSKDecision();
+  ~QPSKDecision() override;
 
-    bool init() override;
-    bool run() override;
+  bool init() override;
+  bool run() override;
 
-    void setParam(const std::string& paramName, const std::any& value) override;
-    bool setData(std::shared_ptr<IData> data) override;
-    std::shared_ptr<IData> getData() override;
+  void setParam(const std::string &paramName, const std::any &value) override;
+  bool setData(std::shared_ptr<IData> data) override;
+  std::shared_ptr<IData> getData() override;
 
 private:
-    std::shared_ptr<GpuComplexFloatSignal> m_inData;
-    std::shared_ptr<GpuByteSignal> m_outData;
+  std::shared_ptr<GpuComplexFloatSignal> m_inData;
+  std::shared_ptr<GpuByteSignal> m_outData;
 };
 
 #endif // QPSK_DECISION_HPP

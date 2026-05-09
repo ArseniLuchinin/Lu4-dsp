@@ -14,32 +14,22 @@
 
 class ConveyorFactory {
 public:
-    explicit ConveyorFactory(ModuleFactory& moduleFactory);
+  explicit ConveyorFactory(ModuleFactory &moduleFactory);
 
-    std::shared_ptr<Conveyor> createFromJsonObject(
-        const boost::json::object& conveyorObj
-    );
-    std::shared_ptr<Conveyor> createFromJsonString(
-        const std::string& jsonStr
-    );
+  std::shared_ptr<Conveyor>
+  createFromJsonObject(const boost::json::object &conveyorObj);
+  std::shared_ptr<Conveyor> createFromJsonString(const std::string &jsonStr);
 
 private:
-    bool buildModule(
-        Conveyor& conveyor,
-        const boost::json::object& moduleObj
-    );
+  bool buildModule(Conveyor &conveyor, const boost::json::object &moduleObj);
 
-    static std::any jsonToAny(const boost::json::value& value);
-    static std::any convertParamValue(
-        const boost::json::value& value,
-        const ModuleMethaDataReader& reader,
-        const std::string& paramName
-    );
+  static std::any jsonToAny(const boost::json::value &value);
+  static std::any convertParamValue(const boost::json::value &value,
+                                    const ModuleMethaDataReader &reader,
+                                    const std::string &paramName);
 
-    ModuleFactory& m_factory;
-    src::severity_channel_logger<
-        logging::trivial::severity_level
-    > logger;
+  ModuleFactory &m_factory;
+  src::severity_channel_logger<logging::trivial::severity_level> logger;
 };
 
 #endif // CONVEYOR_FACTORY_HPP

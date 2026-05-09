@@ -1,157 +1,156 @@
 #include "FileWriter.hpp"
-#include <VariablesResolve.hpp>
 #include <IGpuSignalData.hpp>
-#include <module.hpp>
+#include <VariablesResolve.hpp>
 #include <cstdint>
-#include <vector>
 #include <cuda_runtime.h>
+#include <module.hpp>
 #include <sys/stat.h>
+#include <vector>
 
-IModule* createModule() {
-    return new FileWriter();
-}
+IModule *createModule() { return new FileWriter(); }
 
 FileWriter::FileWriter()
-    : IModule({"FileWriter", "libFileWriter-module.so", "module.json"})
-{}
+    : IModule({"FileWriter", "libFileWriter-module.so", "module.json"}) {}
 
 FileWriter::~FileWriter() {
-    if (m_out.is_open()) {
-        m_out.close();
-    }
-    if (m_hostBuffer != nullptr) {
-        cudaFreeHost(m_hostBuffer);
-        m_hostBuffer = nullptr;
-        m_hostBufferSize = 0;
-    }
+  if (m_out.is_open()) {
+    m_out.close();
+  }
+  if (m_hostBuffer != nullptr) {
+    cudaFreeHost(m_hostBuffer);
+    m_hostBuffer = nullptr;
+    m_hostBufferSize = 0;
+  }
 }
 
 bool FileWriter::init() {
-    if (m_fileName.empty()) {
-        ERROR << "FileWriter::init failed: file name is empty." << std::endl;
-        return false;
-    }
+  if (m_fileName.empty()) {
+    ERROR << "FileWriter::init failed: file name is empty." << std::endl;
+    return false;
+  }
 
-    struct stat buffer;
-    bool fileExists = (stat(m_fileName.c_str(), &buffer) == 0);
-    
-    if (fileExists && !m_overwrite) {
-        ERROR << "FileWriter::init failed: file already exists and overwrite is disabled: " << m_fileName << std::endl;
-        return false;
-    }
+  struct stat buffer;
+  bool fileExists = (stat(m_fileName.c_str(), &buffer) == 0);
 
-    if (fileExists && m_overwrite) {
-        if (std::remove(m_fileName.c_str()) != 0) {
-            ERROR << "FileWriter::init failed: can't remove existing file: " << m_fileName << std::endl;
-            return false;
-        }
-    }
+  if (fileExists && !m_overwrite) {
+    ERROR << "FileWriter::init failed: file already exists and overwrite is "
+             "disabled: "
+          << m_fileName << std::endl;
+    return false;
+  }
 
-    if (m_bufferSize > 0) {
-        m_streamBuf.resize(m_bufferSize);
-        m_out.rdbuf()->pubsetbuf(m_streamBuf.data(), m_bufferSize);
+  if (fileExists && m_overwrite) {
+    if (std::remove(m_fileName.c_str()) != 0) {
+      ERROR << "FileWriter::init failed: can't remove existing file: "
+            << m_fileName << std::endl;
+      return false;
     }
+  }
 
-    m_out.open(m_fileName, std::ios::binary | std::ios::trunc);
-    if (!m_out.is_open()) {
-        ERROR << "FileWriter::init failed: can't open file: " << m_fileName << std::endl;
-        return false;
-    }
+  if (m_bufferSize > 0) {
+    m_streamBuf.resize(m_bufferSize);
+    m_out.rdbuf()->pubsetbuf(m_streamBuf.data(), m_bufferSize);
+  }
 
-    return true;
+  m_out.open(m_fileName, std::ios::binary | std::ios::trunc);
+  if (!m_out.is_open()) {
+    ERROR << "FileWriter::init failed: can't open file: " << m_fileName
+          << std::endl;
+    return false;
+  }
+
+  return true;
 }
 
 bool FileWriter::setData(std::shared_ptr<IData> data) {
-    m_inDataGpu = std::dynamic_pointer_cast<IGpuSignalData>(data);
-    if (!m_inDataGpu) {
-        ERROR << "FileWriter::setData failed: input data must be a GPU signal (IGpuSignalData)." << std::endl;
-        return false;
-    }
+  m_inDataGpu = std::dynamic_pointer_cast<IGpuSignalData>(data);
+  if (!m_inDataGpu) {
+    ERROR << "FileWriter::setData failed: input data must be a GPU signal "
+             "(IGpuSignalData)."
+          << std::endl;
+    return false;
+  }
 
-    if (!m_inDataGpu->isValid()) {
-        ERROR << "FileWriter::setData failed: input data is invalid." << std::endl;
-        return false;
-    }
+  if (!m_inDataGpu->isValid()) {
+    ERROR << "FileWriter::setData failed: input data is invalid." << std::endl;
+    return false;
+  }
 
-    m_outData = data;
-    return true;
+  m_outData = data;
+  return true;
 }
 
 bool FileWriter::run() {
-    if (!m_inDataGpu) {
-        ERROR << "FileWriter::run failed: input data is null." << std::endl;
-        return false;
-    }
+  if (!m_inDataGpu) {
+    ERROR << "FileWriter::run failed: input data is null." << std::endl;
+    return false;
+  }
 
-    if (!m_out.is_open()) {
-        ERROR << "FileWriter::run failed: output file is not open." << std::endl;
-        return false;
-    }
+  if (!m_out.is_open()) {
+    ERROR << "FileWriter::run failed: output file is not open." << std::endl;
+    return false;
+  }
 
-    size_t elementSize = m_inDataGpu->elementSizeBytes();
-    size_t logicalSize = m_inDataGpu->size();
-    size_t byteSize = logicalSize * elementSize;
+  size_t elementSize = m_inDataGpu->elementSizeBytes();
+  size_t logicalSize = m_inDataGpu->size();
+  size_t byteSize = logicalSize * elementSize;
 
-    if (byteSize == 0) {
-        return true;
-    }
-
-    if (m_hostBuffer == nullptr || m_hostBufferSize < byteSize) {
-        if (m_hostBuffer != nullptr) {
-            cudaFreeHost(m_hostBuffer);
-        }
-        cudaError_t allocErr = cudaMallocHost(reinterpret_cast<void**>(&m_hostBuffer), byteSize);
-        if (allocErr != cudaSuccess) {
-            ERROR << "FileWriter::run failed: cudaMallocHost failed: "
-                  << cudaGetErrorString(allocErr) << std::endl;
-            m_hostBuffer = nullptr;
-            m_hostBufferSize = 0;
-            return false;
-        }
-        m_hostBufferSize = byteSize;
-    }
-
-    cudaError_t copyErr = cudaMemcpy(
-        m_hostBuffer,
-        m_inDataGpu->deviceDataRaw(),
-        byteSize,
-        cudaMemcpyDeviceToHost
-    );
-    if (copyErr != cudaSuccess) {
-        ERROR << "FileWriter::run failed: cudaMemcpy D2H failed: "
-              << cudaGetErrorString(copyErr) << std::endl;
-        return false;
-    }
-
-    m_out.write(reinterpret_cast<const char*>(m_hostBuffer),
-                static_cast<std::streamsize>(byteSize));
-    if (!m_out.good()) {
-        ERROR << "FileWriter::run failed: write error for file: " << m_fileName << std::endl;
-        return false;
-    }
-
+  if (byteSize == 0) {
     return true;
+  }
+
+  if (m_hostBuffer == nullptr || m_hostBufferSize < byteSize) {
+    if (m_hostBuffer != nullptr) {
+      cudaFreeHost(m_hostBuffer);
+    }
+    cudaError_t allocErr =
+        cudaMallocHost(reinterpret_cast<void **>(&m_hostBuffer), byteSize);
+    if (allocErr != cudaSuccess) {
+      ERROR << "FileWriter::run failed: cudaMallocHost failed: "
+            << cudaGetErrorString(allocErr) << std::endl;
+      m_hostBuffer = nullptr;
+      m_hostBufferSize = 0;
+      return false;
+    }
+    m_hostBufferSize = byteSize;
+  }
+
+  cudaError_t copyErr = cudaMemcpy(m_hostBuffer, m_inDataGpu->deviceDataRaw(),
+                                   byteSize, cudaMemcpyDeviceToHost);
+  if (copyErr != cudaSuccess) {
+    ERROR << "FileWriter::run failed: cudaMemcpy D2H failed: "
+          << cudaGetErrorString(copyErr) << std::endl;
+    return false;
+  }
+
+  m_out.write(reinterpret_cast<const char *>(m_hostBuffer),
+              static_cast<std::streamsize>(byteSize));
+  if (!m_out.good()) {
+    ERROR << "FileWriter::run failed: write error for file: " << m_fileName
+          << std::endl;
+    return false;
+  }
+
+  return true;
 }
 
-void FileWriter::setParam(const std::string& paramName, const std::any& value) {
-    if (paramName == "file name") {
-        m_fileName = std::any_cast<std::string>(value);
-        return;
-    }
+void FileWriter::setParam(const std::string &paramName, const std::any &value) {
+  if (paramName == "file name") {
+    m_fileName = std::any_cast<std::string>(value);
+    return;
+  }
 
-    if (paramName == "overwrite") {
-        m_overwrite = std::any_cast<bool>(value);
-        return;
-    }
+  if (paramName == "overwrite") {
+    m_overwrite = std::any_cast<bool>(value);
+    return;
+  }
 
-    if (paramName == "buffer size") {
-        m_bufferSize = std::any_cast<size_t>(value);
-        return;
-    }
+  if (paramName == "buffer size") {
+    m_bufferSize = std::any_cast<size_t>(value);
+    return;
+  }
 
-    ERROR << "FileWriter::setParam unknown parameter: " << paramName << std::endl;
+  ERROR << "FileWriter::setParam unknown parameter: " << paramName << std::endl;
 }
 
-std::shared_ptr<IData> FileWriter::getData() {
-    return m_outData;
-}
+std::shared_ptr<IData> FileWriter::getData() { return m_outData; }

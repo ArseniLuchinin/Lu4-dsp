@@ -14,30 +14,25 @@
 
 class Variables {
 public:
-    static Variables& instance();
+  static Variables &instance();
 
-    void registerEnum(const std::string& key,
-                      const std::unordered_map<std::string, int>& values);
-    bool load(const std::string& filename);
+  void registerEnum(const std::string &key,
+                    const std::unordered_map<std::string, int> &values);
+  bool load(const std::string &filename);
 
-    std::any get(const std::string& key) const;
+  std::any get(const std::string &key) const;
 
 private:
-    Variables() = default;
+  Variables() = default;
 
-    bool parseTable(const toml::table& tbl);
-    bool processValue(const std::string& key,
-                      const toml::node& value);
-    bool error(const std::string& key,
-               const std::string& message,
-               const std::string& location = "") const;
+  bool parseTable(const toml::table &tbl);
+  bool processValue(const std::string &key, const toml::node &value);
+  bool error(const std::string &key, const std::string &message,
+             const std::string &location = "") const;
 
-    mutable std::shared_mutex mutex_;
-    std::unordered_map<
-        std::string,
-        std::unordered_map<std::string, int>
-    > enums_;
-    std::unordered_map<std::string, std::any> data_;
+  mutable std::shared_mutex mutex_;
+  std::unordered_map<std::string, std::unordered_map<std::string, int>> enums_;
+  std::unordered_map<std::string, std::any> data_;
 };
 
 #endif // VARIABLES_H

@@ -1,9 +1,9 @@
 #ifndef VIRTUAL_RX_HPP
 #define VIRTUAL_RX_HPP
 
+#include <IData.hpp>
 #include <IModule.hpp>
 #include <IVirtualRX.hpp>
-#include <IData.hpp>
 #include <any>
 #include <memory>
 #include <string>
@@ -13,19 +13,19 @@
  */
 class VirtualRX : public IModule, public IVirtualRX {
 public:
-    VirtualRX();
-    ~VirtualRX() override;
+  VirtualRX();
+  ~VirtualRX() override;
 
-    bool init() override;
-    bool run() override;
+  bool init() override;
+  bool run() override;
 
-    void setParam(const std::string& paramName, const std::any& value) override;
+  void setParam(const std::string &paramName, const std::any &value) override;
 
-    bool setData(std::shared_ptr<IData> data) override;
-    std::shared_ptr<IData> getData() override;
+  bool setData(std::shared_ptr<IData> data) override;
+  std::shared_ptr<IData> getData() override;
 
 private:
-    std::shared_ptr<IData> m_data;
+  std::shared_ptr<IData> m_data;
 };
 
 #endif // VIRTUAL_RX_HPP

@@ -3,31 +3,29 @@
 
 #include <IModule.hpp>
 
-#include <memory>
+#include <logger.hpp>
 #include <string>
 #include <unordered_map>
-#include <logger.hpp>
 
 class ModuleFactory {
-    /// @brief Список модулей и директории с .so файлом и метаданными
-    using modulesPackage_t = std::unordered_map<std::string, std::string>;
-public:
-    /*!
-     * @brief ModuleFactory инициализирует фабрику модулей из папки modulesDir
-     * @param modulesDir
-     **/
-    ModuleFactory(const std::string& modulesDir);
+  /// @brief Список модулей и директории с .so файлом и метаданными
+  using modulesPackage_t = std::unordered_map<std::string, std::string>;
 
-    std::string findModule(const std::string& moduleName);
-    IModule* createModule(const std::string& moduleName);
+public:
+  /*!
+   * @brief ModuleFactory инициализирует фабрику модулей из папки modulesDir
+   * @param modulesDir
+   **/
+  ModuleFactory(const std::string &modulesDir);
+
+  std::string findModule(const std::string &moduleName);
+  IModule *createModule(const std::string &moduleName);
 
 private:
-    src::severity_channel_logger<
-        logging::trivial::severity_level
-    > logger;
+  src::severity_channel_logger<logging::trivial::severity_level> logger;
 
-    std::string m_modulesDir;
-    modulesPackage_t modulesPackage;
+  std::string m_modulesDir;
+  modulesPackage_t modulesPackage;
 };
 
 #endif // MODULE_FACTORY_H

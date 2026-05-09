@@ -2,48 +2,45 @@
 #define FILE_SRC_H
 
 #include <IModule.hpp>
-#include <fstream>
 #include <cstdint>
+#include <fstream>
 
-enum DataType{
-    Float,
-    ComplexFloat
-};
+enum DataType { Float, ComplexFloat };
 
 /*!
  * @brief Класс источник данных
  * @details Читает данные из файла и загружает в GPU
-*/
+ */
 class FileSrc : public IModule {
 public:
+  FileSrc() : IModule({"FileSrc", "libFileSrc-module.so", "module.json"}) {};
+  ~FileSrc();
 
-    FileSrc() : IModule({"FileSrc", "libFileSrc-module.so", "module.json"}) {};
-    ~FileSrc();
+  /// @brief Выделяет память для данных
+  virtual bool init() override;
+  /// @brief Чиатет данные из файл
+  virtual bool run() override;
 
-    /// @brief Выделяет память для данных
-    virtual bool init() override;
-    /// @brief Чиатет данные из файл
-    virtual bool run() override;
+  virtual void setParam(const std::string &paramName,
+                        const std::any &value) override;
 
-    virtual void setParam(const std::string& paramName, const std::any& value) override;
+  virtual bool setData(std::shared_ptr<IData> data) override;
+  virtual std::shared_ptr<IData> getData() override;
 
-    virtual bool setData(std::shared_ptr<IData> data) override;
-    virtual std::shared_ptr<IData> getData() override;
-
-    bool readFile();
+  bool readFile();
 
 protected:
-    DataType m_type = DataType::Float;
+  DataType m_type = DataType::Float;
 
-    size_t m_maxSize;
-    std::string m_fileName;
-    size_t m_stepSize = 0;
-    size_t m_fileSize = 0;
-    size_t m_offset = 0;
-    int m_fd = -1;
-    uint8_t* m_mmapPtr = nullptr;
+  size_t m_maxSize;
+  std::string m_fileName;
+  size_t m_stepSize = 0;
+  size_t m_fileSize = 0;
+  size_t m_offset = 0;
+  int m_fd = -1;
+  uint8_t *m_mmapPtr = nullptr;
 
-    std::shared_ptr<IData> m_data;
+  std::shared_ptr<IData> m_data;
 };
 
 #endif
