@@ -3,6 +3,10 @@
 
 #include <chrono>
 #include <iostream>
+#include <logger.hpp>
+
+static src::severity_channel_logger<logging::trivial::severity_level>
+    logger(boost::log::keywords::channel = "VirtualTransmitter");
 
 std::map<std::string, BroadcastSlot> VirtualTransmitter::s_broadcastSlots;
 std::map<std::string, size_t> VirtualTransmitter::s_receiverCounts;
@@ -21,14 +25,13 @@ bool VirtualTransmitter::registerTx(const std::string &name) {
 
   // Тег может принадлежать только одному TX
   if (slot.txRegistered) {
-    std::cerr << "VirtualTransmitter::registerTx failed: tag='" << name
-              << "' is already registered." << std::endl;
+    ERROR << "VirtualTransmitter::registerTx failed: tag='" << name
+          << "' is already registered." << std::endl;
     return false;
   }
 
   slot.txRegistered = true;
-  std::cout << "[DEBUG] VirtualTransmitter::registerTx tag='" << name << "'."
-            << std::endl;
+  DEBUG << "VirtualTransmitter::registerTx tag='" << name << "'." << std::endl;
   return true;
 }
 
@@ -39,8 +42,8 @@ void VirtualTransmitter::registerRx(const std::string &name) {
   auto &slot = s_broadcastSlots[name];
   slot.expectedReceivers = s_receiverCounts[name];
 
-  std::cout << "[DEBUG] VirtualTransmitter::registerRx tag='" << name
-            << "', receivers=" << s_receiverCounts[name] << std::endl;
+  DEBUG << "VirtualTransmitter::registerRx tag='" << name
+        << "', receivers=" << s_receiverCounts[name] << std::endl;
 }
 
 // ============================================================================
@@ -72,10 +75,10 @@ void VirtualTransmitter::txData(const std::shared_ptr<IData> &data,
         [&]() { return slot.deliveredCount >= slot.expectedReceivers; });
 
     if (!delivered) {
-      std::cerr << "VirtualTransmitter::txData timeout: tag='" << name
-                << "', delivered " << slot.deliveredCount << "/"
-                << slot.expectedReceivers << " in "
-                << (s_timeoutMs.load() / 1000) << "s." << std::endl;
+      ERROR << "VirtualTransmitter::txData timeout: tag='" << name
+            << "', delivered " << slot.deliveredCount << "/"
+            << slot.expectedReceivers << " in " << (s_timeoutMs.load() / 1000)
+            << "s." << std::endl;
       std::exit(1);
     }
   }
@@ -85,8 +88,8 @@ void VirtualTransmitter::txData(const std::shared_ptr<IData> &data,
   slot.deliveredCount = 0;
   slot.iteration++;
 
-  std::cout << "[INFO] VirtualTransmitter::txData published tag='" << name
-            << "', iteration " << slot.iteration << std::endl;
+  DEBUG << "VirtualTransmitter::txData published tag='" << name
+        << "', iteration " << slot.iteration << std::endl;
 
   slot.rxCv.notify_all();
   // TX продолжает работу (не ждёт здесь)
@@ -109,9 +112,9 @@ std::shared_ptr<IData> VirtualTransmitter::waitRxData(const std::string &name) {
       });
 
   if (!received) {
-    std::cerr << "VirtualTransmitter::waitRxData timeout: tag='" << name
-              << "', waited " << (s_timeoutMs.load() / 1000)
-              << "s for iteration " << currentIteration << std::endl;
+    ERROR << "VirtualTransmitter::waitRxData timeout: tag='" << name
+          << "', waited " << (s_timeoutMs.load() / 1000) << "s for iteration "
+          << currentIteration << std::endl;
     std::exit(1);
   }
 
@@ -129,10 +132,9 @@ std::shared_ptr<IData> VirtualTransmitter::waitRxData(const std::string &name) {
     dataCopy = slot.data->copy();
   }
 
-  std::cout << "[INFO] VirtualTransmitter::waitRxData received tag='" << name
-            << "', iteration " << slot.iteration << ", delivered "
-            << slot.deliveredCount << "/" << slot.expectedReceivers
-            << std::endl;
+  INFO << "VirtualTransmitter::waitRxData received tag='" << name
+       << "', iteration " << slot.iteration << ", delivered "
+       << slot.deliveredCount << "/" << slot.expectedReceivers << std::endl;
 
   return dataCopy;
 }
@@ -161,6 +163,9 @@ std::shared_ptr<IData> VirtualTransmitter::rxData(const std::string &name) {
     // Остальные — получают копию
     dataCopy = slot.data->copy();
   }
+
+  DEBUG << "VirtualTransmitter::rxData tag='" << name << "', delivered "
+        << slot.deliveredCount << "/" << slot.expectedReceivers << std::endl;
 
   return dataCopy;
 }

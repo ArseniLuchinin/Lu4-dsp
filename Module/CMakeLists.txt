@@ -36,6 +36,7 @@ target_link_libraries(logger INTERFACE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Boost::json
     tomlplusplus::tomlplusplus
+    logger
 )
 
 set_target_properties(Module PROPERTIES LINKER_LANGUAGE CXX)

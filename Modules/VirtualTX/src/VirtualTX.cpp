@@ -1,3 +1,4 @@
+#include "logger.hpp"
 #include <VariablesResolve.hpp>
 #include <VirtualTX.hpp>
 
@@ -23,7 +24,7 @@ bool VirtualTX::init() {
     return false;
   }
 
-  INFO << "VirtualTX initialized with tag: " << m_tag << std::endl;
+  DEBUG << "VirtualTX initialized with tag: " << m_tag << std::endl;
   return true;
 }
 
@@ -40,9 +41,9 @@ bool VirtualTX::run() {
 
   VirtualTransmitter transmitter;
   transmitter.txData(m_data, m_tag);
-  INFO << "VirtualTX transmitted data by tag: " << m_tag
-       << ", size: " << m_data->size() << ", type: " << m_data->getDataName()
-       << std::endl;
+  DEBUG << "VirtualTX transmitted data by tag: " << m_tag
+        << ", size: " << m_data->size() << ", type: " << m_data->getDataName()
+        << std::endl;
   return true;
 }
 
@@ -57,7 +58,7 @@ void VirtualTX::setParam(const std::string &paramName, const std::any &value) {
       return;
     }
 
-    INFO << "VirtualTX tag set to: " << m_tag << std::endl;
+    DEBUG << "VirtualTX tag set to: " << m_tag << std::endl;
     return;
   }
 
@@ -71,8 +72,8 @@ bool VirtualTX::setData(std::shared_ptr<IData> data) {
     return false;
   }
 
-  INFO << "VirtualTX accepted input data: size=" << m_data->size()
-       << ", type=" << m_data->getDataName() << std::endl;
+  DEBUG << "VirtualTX accepted input data: size=" << m_data->size()
+        << ", type=" << m_data->getDataName() << std::endl;
   return true;
 }
 

@@ -22,7 +22,6 @@ void IModule::fetchParam(const std::string &paramName, const std::any &value) {
     const std::string tag = tagToken.substr(1);
     transmitter.registerRx(tag);
     auto rxData = transmitter.waitRxData(tag);
-    std::cout << "mew" << std::endl;
     setParam(paramName, std::any(rxData));
     return;
   }
