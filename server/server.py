@@ -4,7 +4,7 @@ import subprocess
 import threading
 import uuid
 from datetime import datetime
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_socketio import SocketIO, join_room
 
 
@@ -119,6 +119,28 @@ def stream_logs(process, log_path, session_id):
         process.stdout.close()
         active_processes.pop(session_id, None)
 
+        meta = session_meta.get(session_id)
+        if meta:
+            return_dir = meta.get('return_dir')
+            files = []
+            if return_dir and os.path.isdir(return_dir):
+                try:
+                    for entry in os.scandir(return_dir):
+                        if entry.is_file():
+                            stat = entry.stat()
+                            files.append({
+                                'name': entry.name,
+                                'size': stat.st_size
+                            })
+                except OSError:
+                    pass
+
+            socketio.emit('finished', {
+                'session_id': session_id,
+                'status': 'finished',
+                'files': files
+            }, room=session_id)
+
 
 @app.route('/start', methods=['POST'])
 def start():
@@ -205,7 +227,7 @@ def start():
             text=True,
             encoding='utf-8',
             errors='replace',
-            cwd=os.path.dirname(os.path.abspath(__file__))
+            cwd=session_dir
         )
     except OSError as e:
         return jsonify({
@@ -263,6 +285,44 @@ def list_data():
         'count': len(files),
         'files': files
     })
+
+
+@app.route('/sessions/<session_id>/results/<path:filename>')
+def get_result_file(session_id, filename):
+    meta = session_meta.get(session_id)
+    if not meta:
+        return jsonify({
+            'status': 'error',
+            'message': f'Session "{session_id}" not found'
+        }), 404
+
+    return_dir = meta.get('return_dir')
+    if not return_dir or not os.path.isdir(return_dir):
+        return jsonify({
+            'status': 'error',
+            'message': f'Results directory not found for session "{session_id}"'
+        }), 404
+
+    file_path = os.path.abspath(os.path.join(return_dir, filename))
+    if not file_path.startswith(os.path.abspath(return_dir) + os.sep):
+        return jsonify({
+            'status': 'error',
+            'message': 'Invalid filename: path traversal detected'
+        }), 400
+
+    if not os.path.isfile(file_path):
+        return jsonify({
+            'status': 'error',
+            'message': f'File "{filename}" not found'
+        }), 404
+
+    try:
+        return send_file(file_path, as_attachment=True)
+    except OSError as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to read file: {str(e)}'
+        }), 500
 
 
 @socketio.on('join')

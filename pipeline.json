@@ -1,79 +1,79 @@
 {
-  "variables": "/home/luchinin/my_source/Course_poject/Server/variables.toml",
-  "conveyors": [
-    {
-      "name": "FIR coefficients conveyor",
-      "modules": [
+    "conveyors": [
         {
-          "name": "RRCCompute",
-          "params": {
-            "sample rate": "$SAMPLE_RATE",
-            "symbol rate": "$QPSK_SYMBOL_RATE",
-            "rolloff": 0.35,
-            "span symbols": 8,
-            "samples per symbol": "$QPSK_SPS",
-            "normalize gain": true
-          }
+            "modules": [
+                {
+                    "name": "RRCCompute",
+                    "params": {
+                        "normalize gain": true,
+                        "rolloff": 0.35,
+                        "sample rate": "$SAMPLE_RATE",
+                        "samples per symbol": "$QPSK_SPS",
+                        "span symbols": 8,
+                        "symbol rate": "$QPSK_SYMBOL_RATE"
+                    }
+                },
+                {
+                    "name": "VirtualTX",
+                    "params": {
+                        "tag": "fir_rrc_coeff"
+                    }
+                }
+            ],
+            "name": "FIR coefficients conveyor"
         },
         {
-          "name": "VirtualTX",
-          "params": {
-            "tag": "fir_rrc_coeff"
-          }
+            "modules": [
+                {
+                    "name": "FileSrc",
+                    "params": {
+                        "data type": "complex",
+                        "file name": "$QPSK_FILE",
+                        "max size": "$MAX_SIZE"
+                    }
+                },
+                {
+                    "name": "FIR-filter",
+                    "params": {
+                        "coefficients type": "real",
+                        "filter order": 1025,
+                        "log energy": false,
+                        "taps": "@fir_rrc_coeff"
+                    }
+                },
+                {
+                    "name": "Decimator",
+                    "params": {
+                        "offset": 0,
+                        "samples per symbol": "$QPSK_SPS"
+                    }
+                },
+                {
+                    "name": "CarrierRecovery",
+                    "params": {
+                        "order": 4
+                    }
+                },
+                {
+                    "name": "QPSKDecision"
+                },
+                {
+                    "name": "BitPacker",
+                    "params": {
+                        "bit order": "msb-first",
+                        "discard leading bits": 16,
+                        "flush tail": false
+                    }
+                },
+                {
+                    "name": "TextFileWriter",
+                    "params": {
+                        "file name": "results/qpsk_decoded.txt"
+                    }
+                }
+            ],
+            "name": "Main conveyor"
         }
-      ]
-    },
-    {
-      "name": "Main conveyor",
-      "modules": [
-        {
-          "name": "FileSrc",
-          "params": {
-            "file name": "$QPSK_FILE",
-            "data type": "complex",
-            "max size": "$MAX_SIZE"
-          }
-        },
-        {
-          "name": "FIR-filter",
-          "params": {
-            "filter order": 1025,
-            "coefficients type": "real",
-            "log energy": false,
-            "taps": "@fir_rrc_coeff"
-          }
-        },
-        {
-          "name": "Decimator",
-          "params": {
-            "samples per symbol": "$QPSK_SPS",
-            "offset": 0
-          }
-        },
-        {
-          "name": "CarrierRecovery",
-          "params": {
-            "order": 4
-          }
-        },
-        {
-          "name": "QPSKDecision"
-        },
-        {
-          "name": "BitPacker",
-          "params": {
-            "bit order": "msb-first",
-            "flush tail": false,
-            "discard leading bits": 16
-          }
-        },
-        {
-          "name": "TextFileWriter",
-          "params": {
-            "file name": "qpsk_decoded.txt"
-          }
-        }
-      ]
-    }
-  ]
+    ],
+    "variables": "/home/luchinin/my_source/Course_poject/Server/variables.toml"
 }
