@@ -1,10 +1,11 @@
+# Variables for variables.toml
+
 FFT_SIZE = 16384
 FFT_HOP_SIZE = 8192
 MAX_SIZE = 268435456
 SAMPLE_RATE = 2097152
-SPECTROGRAM_PATH = '/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogram'
-SIGNAL_PATH = '/home/luchinin/my_source/Course_poject/Server/signal_examples/noised_amc_signal.bin'
-
-QPSK_FILE = '/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_signal.bin'
+SPECTROGRAM_PATH = "/home/luchinin/my_source/Course_poject/Server/signal_examples/spectrogram"
+SIGNAL_PATH = "/home/luchinin/my_source/Course_poject/Server/signal_examples/noised_amc_signal.bin"
+QPSK_FILE = "/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_signal.bin"
 QPSK_SPS = 128
 QPSK_SYMBOL_RATE = 16384

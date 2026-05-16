@@ -70,7 +70,7 @@
         {
           "name": "TextFileWriter",
           "params": {
-            "file name": "/home/luchinin/my_source/Course_poject/Server/signal_examples/qpsk_decoded.txt"
+            "file name": "qpsk_decoded.txt"
           }
         }
       ]

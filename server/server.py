@@ -20,8 +20,10 @@ COMPUTING_SERVER_PATH = os.environ.get('COMPUTING_SERVER_PATH', os.path.join(PRO
 SESSIONS_DIR = os.environ.get('SESSIONS_DIR', os.path.join(BASE_DIR, 'sessions'))
 
 MODULES_DIR = os.environ.get('MODULES_DIR', os.path.join(PROJECT_DIR, 'build', 'Modules'))
+DATA_DIR = os.environ.get('LU4_DSP_DATA_DIR', os.path.join(PROJECT_DIR, '/luchinin/my_source/Course_poject/Server/signal_examples'))
 
 active_processes = {}
+session_meta = {}
 
 
 @app.route('/')
@@ -145,6 +147,22 @@ def start():
             'message': f'Failed to create session directory: {str(e)}'
         }), 500
 
+    return_directory = data.get('returnDirectory', 'results')
+    return_dir_path = os.path.abspath(os.path.join(session_dir, return_directory))
+    if not return_dir_path.startswith(os.path.abspath(session_dir) + os.sep):
+        return jsonify({
+            'status': 'error',
+            'message': 'Invalid returnDirectory: path traversal detected'
+        }), 400
+
+    try:
+        os.makedirs(return_dir_path, exist_ok=True)
+    except OSError as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to create return directory: {str(e)}'
+        }), 500
+
     variables_path = os.path.abspath(os.path.join(session_dir, 'variables.toml'))
     try:
         with open(variables_path, 'w', encoding='utf-8') as f:
@@ -196,6 +214,9 @@ def start():
         }), 500
 
     active_processes[session_name] = process
+    session_meta[session_name] = {
+        'return_dir': return_dir_path
+    }
 
     thread = threading.Thread(
         target=stream_logs,
@@ -208,6 +229,39 @@ def start():
         'status': 'ok',
         'session_id': session_name,
         'pid': process.pid
+    })
+
+
+@app.route('/data/list')
+def list_data():
+    data_dir = DATA_DIR
+    if not os.path.isdir(data_dir):
+        return jsonify({
+            'status': 'error',
+            'message': f'Data directory does not exist: {data_dir}'
+        }), 500
+
+    try:
+        files = []
+        for entry in os.scandir(data_dir):
+            if entry.is_file():
+                stat = entry.stat()
+                files.append({
+                    'name': entry.name,
+                    'size': stat.st_size,
+                    'modified': datetime.fromtimestamp(stat.st_mtime).isoformat()
+                })
+    except OSError as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to read data directory: {str(e)}'
+        }), 500
+
+    return jsonify({
+        'status': 'ok',
+        'path': data_dir,
+        'count': len(files),
+        'files': files
     })
 
 
