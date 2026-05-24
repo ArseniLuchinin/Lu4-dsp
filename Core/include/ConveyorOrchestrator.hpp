@@ -36,8 +36,7 @@ private:
   boost::json::value m_root;
   bool m_loaded = false;
 
-  ModuleFactory m_moduleFactory;
-  ConveyorFactory m_conveyorFactory;
+  std::string m_modulePath;
   std::vector<Runtime> m_runtimes;
   std::vector<ConveyorConfig> m_conveyorConfigs;
 

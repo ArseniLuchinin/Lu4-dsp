@@ -6,3 +6,9 @@ serena.yaml
 
 /server/sessions/
 *benchmark*
+
+AGENTS.md
+ARCHITECTURE.md
+QWEN.md
+
+*TestData*

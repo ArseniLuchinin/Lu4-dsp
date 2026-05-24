@@ -3,7 +3,6 @@
 #include <boost/system/error_code.hpp>
 
 #include <filesystem>
-#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <typeindex>

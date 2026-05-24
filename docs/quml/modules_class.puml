@@ -1,0 +1,76 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam backgroundColor #FEFEFE
+skinparam class {
+    BackgroundColor<<interface>> #E3F2FD
+    BackgroundColor<<module>> #E8F5E9
+    BackgroundColor<<factory>> #FFF3E0
+    BackgroundColor<<data>> #F3E5F5
+}
+
+class Variables {
+    - {static} s_instance : Variables*
+    + {static} instance() : Variables&
+    + load(filename) : bool
+    + get(key) : any
+}
+
+class VirtualTransmitter {
+    - {static} s_broadcastSlots : map<string,BroadcastSlot>
+    - {static} s_mutex : mutex
+    + registerTx(tag) : bool
+    + registerRx(tag) : void
+    + txData(data, tag) : void
+    + waitRxData(tag) : shared_ptr<IData>
+    + rxData(tag) : shared_ptr<IData>
+}
+interface IData <<interface>> {
+    + size() : size_t
+    + availableSize() : size_t
+    + reserve(size_t) : bool
+    + isValid() : bool
+    + copy() : shared_ptr<IData>
+    + getDataName() : string
+}
+
+interface IModule <<interface>> {
+    + init() : bool
+    + run() : bool
+    + setParam(name, value) : void
+    + fetchParam(name, value) : void
+    + setData(data) : bool
+    + getData() : shared_ptr<IData>
+    + getMetaData() : ModuleMetaData
+}
+
+class ModuleFactory <<factory>> {
+    - m_redis : Redis
+    - modulesPackage : unordered_map<string,string>
+    + findModule(name) : string
+    + createModule(name) : IModule*
+}
+
+class ModuleMetaData {
+    + name : string
+    + version : string
+    + author : string
+    + description : string
+}
+
+
+class PluginAPI {
+    + {static} PLUGIN_API
+    + createModule() : IModule*
+}
+
+IModule ..> VirtualTransmitter : передача оп тегу
+IModule ..> Variables : извлечение переменной
+
+IModule --> IData : передача данных
+IModule --> ModuleMetaData : использует
+
+ModuleFactory ..> IModule : создание модуля
+ModuleFactory ..> PluginAPI : запрос к динамической бибиотеке
+
+@enduml

@@ -1,0 +1,92 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam backgroundColor #FEFEFE
+skinparam class {
+    BackgroundColor<<interface>> #E3F2FD
+    BackgroundColor<<gpu>> #E8F5E9
+    BackgroundColor<<cpu>> #FFF3E0
+    BackgroundColor<<stub>> #ECEFF1
+}
+
+interface IData <<interface>> {
+    + size() : size_t
+    + availableSize() : size_t
+    + reserve(size_t) : bool
+    + isValid() : bool
+    + copy() : shared_ptr<IData>
+    + getDataName() : string
+}
+
+interface IGpuSignalData <<interface>> {
+    + deviceDataRaw() : void*
+    + elementSizeBytes() : size_t
+    + setLogicalSize(size_t) : void
+}
+
+class GpuSignal<T,Tag> <<gpu>> {
+    - m_size : size_t
+    - m_resedSize : size_t
+    - m_isValid : bool
+    - m_data : T*
+    + GpuSignal()
+    + GpuSignal(size_t)
+    + reserve(size_t) : bool
+    + setDataFromHost(T*, size_t) : bool
+    + setDataFromDevice(T*, size_t) : bool
+    + setLogicalSize(size_t) : void
+    + getDeviceData() : T*
+    + copy() : shared_ptr<IData>
+    - freeData() : void
+}
+
+class GpuFloatSignal <<gpu>> {
+}
+
+class GpuComplexFloatSignal <<gpu>> {
+}
+
+class GpuByteSignal <<gpu>> {
+}
+
+class CpuFloatSignal <<cpu>> {
+    - m_data : float*
+    - m_size : size_t
+    + CpuFloatSignal(float*, size_t)
+    + getData() : float*
+    + {static} fromGpu(shared_ptr<IData>) : shared_ptr<CpuFloatSignal>
+    + copy() : shared_ptr<IData>
+}
+
+class CpuComplexSignal <<cpu>> {
+    - m_data : cuComplex*
+    - m_size : size_t
+    + CpuComplexSignal(cuComplex*, size_t)
+    + getData() : cuComplex*
+    + {static} fromGpu(shared_ptr<IData>) : shared_ptr<CpuComplexSignal>
+    + copy() : shared_ptr<IData>
+}
+
+class EmptyContainer <<stub>> {
+    + size() : 0
+    + availableSize() : 0
+    + reserve(...) : false
+    + isValid() : false
+    + copy() : shared_ptr<EmptyContainer>
+}
+
+IData <|-- IGpuSignalData
+IData <|-- CpuFloatSignal
+IData <|-- CpuComplexSignal
+IData <|-- EmptyContainer
+
+IGpuSignalData <|-- GpuSignal
+GpuSignal <|-- GpuFloatSignal
+GpuSignal <|-- GpuComplexFloatSignal
+GpuSignal <|-- GpuByteSignal
+
+
+CpuFloatSignal ..> GpuFloatSignal : копирует данные
+CpuComplexSignal ..> GpuComplexFloatSignal : копирует данные
+
+@enduml

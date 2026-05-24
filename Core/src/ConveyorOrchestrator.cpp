@@ -1,3 +1,5 @@
+#include "ConveyorFactory.hpp"
+#include "ModuleFactory.hpp"
 #include <ConveyorOrchestrator.hpp>
 
 #include <Variables.hpp>
@@ -10,8 +12,7 @@
 
 ConveyorOrchestrator::ConveyorOrchestrator(const std::string &configPath,
                                            const std::string &modulesDir)
-    : m_configPath(configPath), m_moduleFactory(modulesDir),
-      m_conveyorFactory(m_moduleFactory),
+    : m_configPath(configPath), m_modulePath(modulesDir),
       logger(boost::log::keywords::channel = "ConveyorOrchestrator") {}
 
 bool ConveyorOrchestrator::load() {
@@ -67,7 +68,9 @@ bool ConveyorOrchestrator::run() {
       const auto start = std::chrono::steady_clock::now();
 
       try {
-        runtime.conveyor = m_conveyorFactory.createFromJsonObject(config);
+        ModuleFactory moduleFactory(m_modulePath);
+        ConveyorFactory factory(moduleFactory);
+        runtime.conveyor = factory.createFromJsonObject(config);
       } catch (const std::exception &ex) {
         ERROR << "Failed to build conveyor: " << ex.what() << std::endl;
         return;
